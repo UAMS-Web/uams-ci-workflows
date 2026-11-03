@@ -524,7 +524,7 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}', inputs.encoding-guard && '' || 'encoding-guard ', inputs.vitest && '' || 'vitest ', inputs.vite-build && '' || 'vite-build ', inputs.mutation-smoke && '' || 'mutation-smoke ') }}
+          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
           echo "Needed job results:"
