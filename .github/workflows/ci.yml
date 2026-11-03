@@ -38,9 +38,9 @@ name: CI chain
 # on which operating system" section holds the evidence. A job with no recorded evidence runs on all three.
 #
 # The four optional jobs (`encoding-guard`, `vitest`, `vite-build`, `mutation-smoke`) are off unless the caller
-# turns them on, and each runs a command the caller supplies. They are classified for all three runners:
-# UAMS-Web/uams-claude-skills#478 has recorded no evidence that any of them gives the same result on every
-# platform, and a job with no evidence runs on all three.
+# turns them on, and each runs a command the caller supplies. `encoding-guard` and `vite-build` are Linux only,
+# `vitest` and `mutation-smoke` run on all three, on the seeded-fault evidence in
+# UAMS-Web/uams-claude-skills#478 (see the code-quality skill).
 #
 # The final `result` job `needs:` every job, runs `if: always()`, and fails unless each needed job succeeded.
 # A needed job reports `skipped` only when its input switched it off, and that is the one skip it accepts.
@@ -385,12 +385,12 @@ jobs:
     name: Encoding guard (${{ matrix.os }})
     if: inputs.encoding-guard
     needs: [pint]
-    # Legs: all three. No evidence yet that it gives the same result everywhere (UAMS-Web/uams-claude-skills#478): it reads every tracked file and spawns git.
+    # Legs: Linux only. Seeded fault failed on all three platforms and the control passed on all three (UAMS-Web/uams-claude-skills#478), so one platform sees what three do.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.linux-only && !contains(format(' {0} ', inputs.all-platform-jobs), ' encoding-guard ') && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' encoding-guard ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     defaults:
       run:
@@ -415,7 +415,7 @@ jobs:
     name: JS unit tests (${{ matrix.os }})
     if: inputs.vitest
     needs: [pint]
-    # Legs: all three. No evidence yet that it gives the same result everywhere (UAMS-Web/uams-claude-skills#478): suites can fork real git and Node processes, and durations differ by machine.
+    # Legs: all three. Evidence (UAMS-Web/uams-claude-skills#478): the suite is platform-gated, Windows skips 10 tests and the others 5, so the job runs different tests per platform. Suites can fork real git and Node processes, and durations differ by machine.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -450,12 +450,12 @@ jobs:
     name: Vite build (${{ matrix.os }})
     if: inputs.vite-build
     needs: [pint]
-    # Legs: all three. No evidence yet that it gives the same result everywhere (UAMS-Web/uams-claude-skills#478): the build resolves paths and native binaries per platform.
+    # Legs: Linux only. Seeded fault failed on all three platforms and the control passed on all three (UAMS-Web/uams-claude-skills#478), so one platform sees what three do.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.linux-only && !contains(format(' {0} ', inputs.all-platform-jobs), ' vite-build ') && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' vite-build ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     defaults:
       run:
@@ -486,7 +486,7 @@ jobs:
     name: Mutation tooling smoke (${{ matrix.os }})
     if: inputs.mutation-smoke
     needs: [rector]
-    # Legs: all three. No evidence yet that it gives the same result everywhere (UAMS-Web/uams-claude-skills#478): it gates the mutation tooling, which authors run on Windows and macOS workstations, and PCOV is installed per platform.
+    # Legs: all three. Evidence (UAMS-Web/uams-claude-skills#478): the seeded fault failed on all three platforms, but this tool's past defects were Windows-only, so the job stays on three. It gates the mutation tooling, which authors run on Windows and macOS workstations, and PCOV is installed per platform.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
