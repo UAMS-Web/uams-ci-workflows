@@ -1,5 +1,8 @@
 name: CI chain
 
+# cspell:ignore vitest
+# vitest is the name of an input and of the tool it switches on, so it cannot be reworded.
+
 # Template: .claude/skills/code-quality/templates/ci-reusable.yml in UAMS-Web/uams-claude-skills,
 # published as .github/workflows/ci.yml in UAMS-Web/uams-ci-workflows (UAMS-Web/uams-claude-skills#485).
 # A repository calls it from its own ci.yml with `uses:` and pins a tag or a commit, so it takes a change
