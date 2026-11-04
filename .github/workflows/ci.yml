@@ -59,6 +59,10 @@ on:
         description: Space-separated job ids to run on all three runners whatever linux-only says.
         type: string
         default: ''
+      share-floor-seconds:
+        description: The summed class time, in seconds, below which the pest job's Slowest class step skips its share check (UAMS-Web/uams-claude-skills#505). 0 never skips it.
+        type: number
+        default: 10
       mutate-paths:
         description: Space-separated paths the mutate job selects changed PHP files from, the paths `composer mutate` passes to --path.
         type: string
@@ -380,9 +384,11 @@ jobs:
         run: php .claude/skills/pest-testing/scripts/check-skip-baseline.php --report=junit.xml --baseline=tests/skip-baseline.json
 
       # Fails when one class takes over 25 percent of the summed class time, or over 900 seconds.
+      # The share check is skipped, and the step says so, when the summed class time is under the
+      # share-floor-seconds input; the 900-second backstop is checked either way.
       - name: Slowest class
         if: ${{ !cancelled() }}
-        run: php .claude/skills/pest-testing/scripts/check-slowest-class.php --report=junit.xml --share-ceiling=25 --ceiling=900
+        run: php .claude/skills/pest-testing/scripts/check-slowest-class.php --report=junit.xml --share-ceiling=25 --ceiling=900 --share-floor=${{ inputs.share-floor-seconds }}
 
   encoding-guard:
     name: Encoding guard (${{ matrix.os }})
