@@ -53,6 +53,9 @@ name: CI chain
 # no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg and changes nothing else:
 # the `mutate-ignore` annotation check still runs.
 #
+# The `mutate` job runs on `ubuntu-latest` only, whatever `linux-only`, `windows-jobs` or `all-platform-jobs` says
+# (UAMS-Web/uams-ci-workflows#13): a Windows leg reported a score that counted undetected mutants as killed.
+#
 # The `mutate-ignore` job scans whichever of `app`, `src` and `tests` exist unless the caller names paths in
 # `mutate-ignore-paths` (UAMS-Web/uams-claude-skills#534), for a source tree elsewhere such as a plugin's `includes`.
 #
@@ -305,12 +308,13 @@ jobs:
     name: Mutation score (changed files, with PCOV) (${{ matrix.os }})
     if: inputs.mutate
     needs: [rector, phpstan]
-    # Legs: all three. Mutation tooling has needed Windows-only patches, and the PCOV driver is installed per platform.
+    # Legs: Ubuntu only, whatever `linux-only`, `windows-jobs` or `all-platform-jobs` says (UAMS-Web/uams-ci-workflows#13). A Windows leg
+    # scored 100.00% over mutants that the same tests leave untested on Ubuntu and macOS, so its score counts undetected mutants as killed.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' mutate ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' mutate ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ["ubuntu-latest"]
     # 45 minutes for the changed files a pull request or a push selects; a scheduled or manually dispatched run
     # mutates everything and takes the longer `mutate-full-timeout-minutes`. The event is the caller's.
     timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && inputs.mutate-full-timeout-minutes || 45 }}
