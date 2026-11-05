@@ -12,6 +12,7 @@ A caller passes these with `with:`. Every input has a default, so a caller that 
 | `windows-jobs` | string | empty | Space-separated job ids that run on `ubuntu-latest` and `windows-latest` only, with no `macos-latest` leg, whether or not `linux-only` is set. A job also named in `all-platform-jobs` keeps all three runners. |
 | `pest` | boolean | `true` | Run the `pest` job. Pass `false` where the suite runs as the caller's own jobs (private submodules, a secret, shards); the job is skipped and `Chain result` accepts the skip. |
 | `mutate` | boolean | `true` | Run the `mutate` job. Pass `false` where the source holds no code a mutator changes; the job is skipped and `Chain result` accepts the skip. |
+| `mutate-full-timeout-minutes` | number | `180` | Job timeout of the `mutate` job on a `schedule` or `workflow_dispatch` run, the events that run the full pass. Other events keep 45 minutes: a pull request or a push mutates only the changed PHP files under `mutate-paths`. |
 | `mutate-paths` | string | `src` | Paths the `mutate` job selects changed PHP files from on a pull request. |
 | `share-floor-seconds` | number | `10` | Summed class time below which the `Slowest class` step skips its share check. `0` never skips it. |
 | `encoding-guard`, `vitest`, `vite-build`, `mutation-smoke` | boolean | `false` | Switch on the optional job of that name. Each has a `<name>-command` input, except that `vitest-command` defaults to `npm run test:js` and `vite-build-command` to `npm run build`. |
