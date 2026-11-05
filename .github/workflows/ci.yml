@@ -34,6 +34,9 @@ name: CI chain
 # - `all-platform-jobs` is a space-separated list of job ids kept on all three runners whatever else is set:
 #   a job classified Linux only gains its Windows and macOS legs, and a job classified for all three keeps them
 #   under `linux-only`.
+# - `windows-jobs` is a space-separated list of job ids that run on `ubuntu-latest` and `windows-latest` and not on
+#   `macos-latest`, whatever `linux-only` says: a job classified for all three loses its macOS leg, and a job classified
+#   Linux only gains its Windows leg. A job named in both lists keeps all three. Omitted, it changes nothing.
 #
 # Each job carries a `# Legs:` line saying which classification it has and why; scripts/check-templates.mjs
 # fails this template when a job is unclassified, when a job's matrix is not the one its classification
@@ -68,6 +71,10 @@ on:
         default: false
       all-platform-jobs:
         description: Space-separated job ids to run on all three runners whatever linux-only says.
+        type: string
+        default: ''
+      windows-jobs:
+        description: Space-separated job ids to run on ubuntu-latest and windows-latest only, with no macos-latest leg, whatever linux-only says. A job also named in all-platform-jobs keeps all three.
         type: string
         default: ''
       share-floor-seconds:
@@ -134,7 +141,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' composer-validate ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' composer-validate ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' composer-validate ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -155,7 +162,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' synced-files ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' synced-files ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' synced-files ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -174,7 +181,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' no-emoji ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' no-emoji ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' no-emoji ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -193,7 +200,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' aggregate-needs ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' aggregate-needs ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' aggregate-needs ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -214,7 +221,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' pint ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' pint ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' pint ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -229,7 +236,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' rector ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' rector ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' rector ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -244,7 +251,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' phpstan ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' phpstan ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' phpstan ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -259,7 +266,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.linux-only && !contains(format(' {0} ', inputs.all-platform-jobs), ' mutate-ignore ') && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' mutate-ignore ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' mutate-ignore ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -279,7 +286,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.linux-only && !contains(format(' {0} ', inputs.all-platform-jobs), ' mutate ') && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' mutate ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' mutate ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     timeout-minutes: 45
     # An explicit `bash` runs each step with `-eo pipefail`; the default, `bash -e`, does not,
     # and the run step's `| tee` would then report tee's status in place of Pest's.
@@ -382,7 +389,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.linux-only && !contains(format(' {0} ', inputs.all-platform-jobs), ' pest ') && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' pest ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' pest ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -420,7 +427,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' encoding-guard ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' encoding-guard ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' encoding-guard ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     defaults:
       run:
@@ -450,7 +457,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.linux-only && !contains(format(' {0} ', inputs.all-platform-jobs), ' vitest ') && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' vitest ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' vitest ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     timeout-minutes: 15
     defaults:
       run:
@@ -485,7 +492,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' vite-build ') && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' vite-build ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' vite-build ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     defaults:
       run:
@@ -521,7 +528,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.linux-only && !contains(format(' {0} ', inputs.all-platform-jobs), ' mutation-smoke ') && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' mutation-smoke ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' mutation-smoke ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     timeout-minutes: 20
     defaults:
       run:
