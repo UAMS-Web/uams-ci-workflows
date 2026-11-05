@@ -53,6 +53,9 @@ name: CI chain
 # no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg and changes nothing else:
 # the `mutate-ignore` annotation check still runs.
 #
+# The `mutate-ignore` job scans whichever of `app`, `src` and `tests` exist unless the caller names paths in
+# `mutate-ignore-paths` (UAMS-Web/uams-claude-skills#534), for a source tree elsewhere such as a plugin's `includes`.
+#
 # What the `mutate` job mutates depends on the caller's event (UAMS-Web/uams-claude-skills#532). A pull request and
 # a push mutate only the PHP files under `mutate-paths` that the commit adds, changes or renames, so a run costs what
 # the change costs and not what the code base has grown to. A `schedule` or `workflow_dispatch` run mutates everything
@@ -100,6 +103,10 @@ on:
         description: The timeout, in minutes, of the mutate job on a scheduled or manually dispatched run, which mutates everything composer mutate covers (UAMS-Web/uams-claude-skills#532). A pull request or a push mutates only changed files and keeps 45.
         type: number
         default: 180
+      mutate-ignore-paths:
+        description: Space-separated paths the mutate-ignore job scans for `@pest-mutate-ignore` annotations (UAMS-Web/uams-claude-skills#534). Empty keeps the script's own default, whichever of app, src and tests exist. A WordPress plugin names its source directory, such as includes.
+        type: string
+        default: ''
       mutate-paths:
         description: Space-separated paths the mutate job selects changed PHP files from, the paths `composer mutate` passes to --path.
         type: string
@@ -286,7 +293,13 @@ jobs:
       # Fails, naming the file and line, on a bare marker, a tail that names no mutator,
       # prose after a mutator list, and (on a CRLF runtime) a trailing marker. Prints the
       # plugin revision its parsing model was measured against.
-      - run: php .claude/skills/pest-testing/scripts/check-mutate-ignore.php
+      # The paths are left unquoted on purpose, so the shell splits them into one argument each; an empty
+      # input passes none, and the script then reads whichever of app, src and tests exist.
+      - name: Check the annotations
+        shell: bash
+        env:
+          MUTATE_IGNORE_PATHS: ${{ inputs.mutate-ignore-paths }}
+        run: php .claude/skills/pest-testing/scripts/check-mutate-ignore.php $MUTATE_IGNORE_PATHS
 
   mutate:
     name: Mutation score (changed files, with PCOV) (${{ matrix.os }})
