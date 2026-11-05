@@ -45,6 +45,11 @@ name: CI chain
 # `vitest` and `mutation-smoke` run on all three, on the seeded-fault evidence in
 # UAMS-Web/uams-claude-skills#478 (see the code-quality skill).
 #
+# The `mutate` job is on unless the caller passes `mutate: false`. A repository whose source holds no code a
+# mutator changes (an add-on template with a stub) has nothing to mutate, and the job fails a run that created
+# no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg and changes nothing else:
+# the `mutate-ignore` annotation check still runs.
+#
 # The final `result` job `needs:` every job, runs `if: always()`, and fails unless each needed job succeeded.
 # A needed job reports `skipped` only when its input switched it off, and that is the one skip it accepts.
 
@@ -63,6 +68,10 @@ on:
         description: The summed class time, in seconds, below which the pest job's Slowest class step skips its share check (UAMS-Web/uams-claude-skills#505). 0 never skips it.
         type: number
         default: 10
+      mutate:
+        description: Run the mutate job. Pass false in a repository whose source holds no code a mutator changes.
+        type: boolean
+        default: true
       mutate-paths:
         description: Space-separated paths the mutate job selects changed PHP files from, the paths `composer mutate` passes to --path.
         type: string
@@ -253,6 +262,7 @@ jobs:
 
   mutate:
     name: Mutation score (changed files, with PCOV) (${{ matrix.os }})
+    if: inputs.mutate
     needs: [rector, phpstan]
     # Legs: all three. Mutation tooling has needed Windows-only patches, and the PCOV driver is installed per platform.
     runs-on: ${{ matrix.os }}
@@ -533,7 +543,7 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '') }}
+          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}', !inputs.mutate && 'mutate ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
           echo "Needed job results:"
