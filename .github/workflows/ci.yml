@@ -38,6 +38,9 @@ name: CI chain
 #   `macos-latest`, whatever `linux-only` says: a job classified for all three loses its macOS leg, and a job classified
 #   Linux only gains its Windows leg. A job named in both lists keeps all three. Omitted, it changes nothing.
 #
+# The `mutate` job is the exception to all three inputs: it runs on `ubuntu-latest` only, because a mutation score
+# taken on a Windows leg has counted mutants the tests never detect as killed (UAMS-Web/uams-ci-workflows#13).
+#
 # Each job carries a `# Legs:` line saying which classification it has and why; scripts/check-templates.mjs
 # fails this template when a job is unclassified, when a job's matrix is not the one its classification
 # requires, or when the final `result` job does not need every job. The code-quality skill's "Which jobs run
@@ -305,12 +308,12 @@ jobs:
     name: Mutation score (changed files, with PCOV) (${{ matrix.os }})
     if: inputs.mutate
     needs: [rector, phpstan]
-    # Legs: all three. Mutation tooling has needed Windows-only patches, and the PCOV driver is installed per platform.
+    # Legs: Ubuntu only, whatever the caller passes. A Windows leg scored mutants the tests never detect as killed (UAMS-Web/uams-ci-workflows#13), so `all-platform-jobs`, `windows-jobs` and `linux-only` do not reach this matrix.
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' mutate ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' mutate ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        os: [ubuntu-latest]
     # 45 minutes for the changed files a pull request or a push selects; a scheduled or manually dispatched run
     # mutates everything and takes the longer `mutate-full-timeout-minutes`. The event is the caller's.
     timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && inputs.mutate-full-timeout-minutes || 45 }}

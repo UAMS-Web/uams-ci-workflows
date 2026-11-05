@@ -8,8 +8,8 @@ A caller passes these with `with:`. Every input has a default, so a caller that 
 | Input | Type | Default | Effect |
 | --- | --- | --- | --- |
 | `linux-only` | boolean | `false` | Run every job on `ubuntu-latest` only, except the jobs named in `all-platform-jobs`. |
-| `all-platform-jobs` | string | empty | Space-separated job ids kept on all three runners whatever `linux-only` says. |
-| `windows-jobs` | string | empty | Space-separated job ids that run on `ubuntu-latest` and `windows-latest` only, with no `macos-latest` leg, whether or not `linux-only` is set. A job also named in `all-platform-jobs` keeps all three runners. |
+| `all-platform-jobs` | string | empty | Space-separated job ids kept on all three runners whatever `linux-only` says. Naming `mutate` changes nothing: that job runs on `ubuntu-latest` only. |
+| `windows-jobs` | string | empty | Space-separated job ids that run on `ubuntu-latest` and `windows-latest` only, with no `macos-latest` leg, whether or not `linux-only` is set. A job also named in `all-platform-jobs` keeps all three runners. `mutate` is not affected: it runs on `ubuntu-latest` only. |
 | `pest` | boolean | `true` | Run the `pest` job. Pass `false` where the suite runs as the caller's own jobs (private submodules, a secret, shards); the job is skipped and `Chain result` accepts the skip. |
 | `mutate` | boolean | `true` | Run the `mutate` job. Pass `false` where the source holds no code a mutator changes; the job is skipped and `Chain result` accepts the skip. |
 | `mutate-full-timeout-minutes` | number | `180` | Job timeout of the `mutate` job on a `schedule` or `workflow_dispatch` run, the events that run the full pass. Other events keep 45 minutes: a pull request or a push mutates only the changed PHP files under `mutate-paths`. |
