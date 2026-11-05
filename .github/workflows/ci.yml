@@ -50,6 +50,12 @@ name: CI chain
 # no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg and changes nothing else:
 # the `mutate-ignore` annotation check still runs.
 #
+# The `pest` job is on unless the caller passes `pest: false`. A repository whose suite needs what the called
+# chain cannot give it (private submodules, a secret, a sharded run with its own reports) keeps its own Pest
+# jobs as plain jobs beside the call and lists them in the `needs:` of its `CI` job. `pest: false` skips the job
+# on every leg and changes nothing else. A `pest` job that is skipped while the input is true (a cancelled run,
+# say) still fails the `result` job.
+#
 # The final `result` job `needs:` every job, runs `if: always()`, and fails unless each needed job succeeded.
 # A needed job reports `skipped` only when its input switched it off, and that is the one skip it accepts.
 
@@ -68,6 +74,10 @@ on:
         description: The summed class time, in seconds, below which the pest job's Slowest class step skips its share check (UAMS-Web/uams-claude-skills#505). 0 never skips it.
         type: number
         default: 10
+      pest:
+        description: Run the pest job. Pass false in a repository that runs its Pest suite as its own jobs.
+        type: boolean
+        default: true
       mutate:
         description: Run the mutate job. Pass false in a repository whose source holds no code a mutator changes.
         type: boolean
@@ -365,6 +375,7 @@ jobs:
 
   pest:
     name: Pest (${{ matrix.os }})
+    if: inputs.pest
     needs: [rector, phpstan]
     # Legs: all three. The suite is what runs on the platforms the code ships to: paths, command-line length, BSD tools, case-insensitive file systems.
     runs-on: ${{ matrix.os }}
@@ -543,7 +554,7 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}', !inputs.mutate && 'mutate ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '') }}
+          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
           echo "Needed job results:"
