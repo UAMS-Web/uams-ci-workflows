@@ -1,6 +1,6 @@
 name: CI chain
 
-# cspell:ignore vitest vite mktemp
+# cspell:ignore vitest vite mktemp esac
 # vitest and vite are the names of inputs and of the tools they switch on, and mktemp is the command a step runs, so none can be reworded.
 
 # Template: .claude/skills/code-quality/templates/ci-reusable.yml in UAMS-Web/uams-claude-skills,
@@ -53,6 +53,13 @@ name: CI chain
 # no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg and changes nothing else:
 # the `mutate-ignore` annotation check still runs.
 #
+# What the `mutate` job mutates depends on the caller's event (UAMS-Web/uams-claude-skills#532). A pull request and
+# a push mutate only the PHP files under `mutate-paths` that the commit adds, changes or renames, so a run costs what
+# the change costs and not what the code base has grown to. A `schedule` or `workflow_dispatch` run mutates everything
+# `composer mutate` covers, under `mutate-full-timeout-minutes` (default 180) in place of the 45 minutes the others get.
+# The full pass is what catches drift from a dependency or tooling change, so a caller adds a `schedule:` trigger to its
+# own `ci.yml` (the caller template shows one). Any other event, and a pushed commit with no parent, mutates everything.
+#
 # The `pest` job is on unless the caller passes `pest: false`. A repository whose suite needs what the called
 # chain cannot give it (private submodules, a secret, a sharded run with its own reports) keeps its own Pest
 # jobs as plain jobs beside the call and lists them in the `needs:` of its `CI` job. `pest: false` skips the job
@@ -89,6 +96,10 @@ on:
         description: Run the mutate job. Pass false in a repository whose source holds no code a mutator changes.
         type: boolean
         default: true
+      mutate-full-timeout-minutes:
+        description: The timeout, in minutes, of the mutate job on a scheduled or manually dispatched run, which mutates everything composer mutate covers (UAMS-Web/uams-claude-skills#532). A pull request or a push mutates only changed files and keeps 45.
+        type: number
+        default: 180
       mutate-paths:
         description: Space-separated paths the mutate job selects changed PHP files from, the paths `composer mutate` passes to --path.
         type: string
@@ -287,7 +298,9 @@ jobs:
       fail-fast: false
       matrix:
         os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' mutate ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' mutate ') && '["ubuntu-latest","windows-latest"]' || inputs.linux-only && '["ubuntu-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
-    timeout-minutes: 45
+    # 45 minutes for the changed files a pull request or a push selects; a scheduled or manually dispatched run
+    # mutates everything and takes the longer `mutate-full-timeout-minutes`. The event is the caller's.
+    timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && inputs.mutate-full-timeout-minutes || 45 }}
     # An explicit `bash` runs each step with `-eo pipefail`; the default, `bash -e`, does not,
     # and the run step's `| tee` would then report tee's status in place of Pest's.
     defaults:
@@ -295,7 +308,7 @@ jobs:
         shell: bash
     steps:
       # Depth 2: on a pull request the checkout is GitHub's merge commit, and its first parent
-      # is the base branch it was merged onto.
+      # is the base branch it was merged onto. On a push it is the pushed commit and its parent.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
@@ -303,25 +316,40 @@ jobs:
         with:
           coverage: pcov
 
-      # On a pull request, mutate only the PHP files under mutate-paths that the pull request
-      # adds, changes or renames. They are read from the merge commit against its first parent,
-      # so a later change on the base branch is not counted. A pull request that changes none
-      # passes with the reason printed. A push mutates everything `composer mutate` covers.
+      # On a pull request or a push, mutate only the PHP files under mutate-paths that it adds,
+      # changes or renames, read from HEAD against its first parent: the merge commit on a pull
+      # request, so a later change on the base branch is not counted, and the pushed commit on a
+      # push (a squash-merged pull request is one commit). A run that changes none passes with the
+      # reason printed. A scheduled or manually dispatched run, and a push of a commit with no
+      # parent, mutates everything `composer mutate` covers (UAMS-Web/uams-claude-skills#532).
       - name: Select the files to mutate
         id: select
         env:
           EVENT: ${{ github.event_name }}
           MUTATE_PATHS: ${{ inputs.mutate-paths }}
         run: |
-          if [ "$EVENT" != "pull_request" ]; then
-            echo "mode=full" >> "$GITHUB_OUTPUT"
-            echo "Not a pull request: mutating everything composer mutate covers."
-            exit 0
-          fi
-          if ! git rev-parse --verify --quiet HEAD^2 > /dev/null; then
-            echo "::error::HEAD is not a merge commit, so the pull request's changes cannot be read."
-            exit 1
-          fi
+          case "$EVENT" in
+            pull_request)
+              what="pull request"
+              if ! git rev-parse --verify --quiet HEAD^2 > /dev/null; then
+                echo "::error::HEAD is not a merge commit, so the pull request's changes cannot be read."
+                exit 1
+              fi
+              ;;
+            push)
+              what="push"
+              if ! git rev-parse --verify --quiet HEAD^1 > /dev/null; then
+                echo "mode=full" >> "$GITHUB_OUTPUT"
+                echo "The pushed commit has no parent, so its changes cannot be read: mutating everything composer mutate covers."
+                exit 0
+              fi
+              ;;
+            *)
+              echo "mode=full" >> "$GITHUB_OUTPUT"
+              echo "Not a pull request or a push ($EVENT): mutating everything composer mutate covers."
+              exit 0
+              ;;
+          esac
           # NUL-separated, so a name git would quote (non-ASCII, a tab) is read as it is
           list=$(mktemp)
           git diff -z --name-only --diff-filter=AMR HEAD^1 HEAD -- $MUTATE_PATHS > "$list"
@@ -336,7 +364,7 @@ jobs:
           done < "$list"
           if [ "${#files[@]}" -eq 0 ]; then
             echo "mode=none" >> "$GITHUB_OUTPUT"
-            echo "No PHP file under $MUTATE_PATHS is added or changed by this pull request, so there is nothing to mutate."
+            echo "No PHP file under $MUTATE_PATHS is added or changed by this $what, so there is nothing to mutate."
             exit 0
           fi
           echo "Mutating ${#files[@]} changed file(s):"
