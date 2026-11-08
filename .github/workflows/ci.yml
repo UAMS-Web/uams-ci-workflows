@@ -195,6 +195,9 @@ jobs:
       # Fails, naming the file, when a synced rule or skill was edited by hand.
       - run: node .claude/skills/synced-files/scripts/check-synced-files.mjs
 
+      # Fails, naming the file, when a copy of a shared workflow differs from its template. A repository with no copy passes.
+      - run: node .claude/skills/synced-files/scripts/check-workflow-copies.mjs
+
   no-emoji:
     name: No emoji in durable records (${{ matrix.os }})
     # Legs: Linux only. It sweeps tracked prose for banned code points with Node alone; no platform branch in the script.
