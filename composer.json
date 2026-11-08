@@ -1,0 +1,6 @@
+{
+    "name": "uams/scratch-20",
+    "description": "Scratch fixture for #20. Never merged.",
+    "require": { "php": ">=8.2" },
+    "scripts": { "test:pint": "echo pint-ok", "test:refactor": "echo rector-ok", "stan": "echo phpstan-ok" }
+}
