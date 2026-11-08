@@ -55,13 +55,14 @@ name: CI chain
 # `floor-lint-php` and `floor-lint-command`), `download-archive` (`download-archive-command`) and `phpcs`
 # (`phpcs-command`). Each is off until its boolean input is `true` and Linux only. A plugin caller passes
 # `linux-only: true`, `mutate: false`, those three jobs on, and `pest-command: composer test:unit` when its unit suite is
-# that script. Its WordPress integration matrix (a MySQL service, a WordPress download, single and multisite) stays a
+# that script. A plugin that does not receive the `pest-testing` skill also passes `mutate: false`, which skips the
+# `mutate-ignore` job, and `global-test-symbols: false`. Its WordPress integration matrix (a MySQL service, a WordPress download, single and multisite) stays a
 # plain job in the caller beside the call, listed in the `needs:` of its `CI` job; this chain does not run it.
 #
 # The `mutate` job is on unless the caller passes `mutate: false`. A repository whose source holds no code a
 # mutator changes (an add-on template with a stub) has nothing to mutate, and the job fails a run that created
-# no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg and changes nothing else:
-# the `mutate-ignore` annotation check still runs.
+# no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg, and skips the `mutate-ignore` job with it (UAMS-Web/uams-claude-skills#612):
+# annotations only matter where a mutation run reads them, and the check runs a script of the `pest-testing` skill.
 #
 # The `mutate-ignore` job scans whichever of `app`, `src` and `tests` exist unless the caller names paths in
 # `mutate-ignore-paths` (UAMS-Web/uams-claude-skills#534), for a source tree elsewhere such as a plugin's `includes`.
@@ -163,6 +164,10 @@ on:
         description: The command the pest job runs (UAMS-Web/uams-claude-skills#607). The default, composer test, runs with a JUnit report and the skip-baseline and slowest-class checks that read it; any other command runs as given and those two checks are skipped, because no report is written.
         type: string
         default: composer test
+      global-test-symbols:
+        description: Run the Global test symbols step of the pest job (UAMS-Web/uams-claude-skills#612). It runs check-global-test-symbols.php from the pest-testing skill, which guards `pest --parallel`. Pass false in a repository that does not receive that skill.
+        type: boolean
+        default: true
       floor-lint:
         description: Run the floor-lint job, which parses the shipped PHP files under the repository's supported floor.
         type: boolean
@@ -325,6 +330,7 @@ jobs:
 
   mutate-ignore:
     name: Mutation annotations (none inert) (${{ matrix.os }})
+    if: inputs.mutate
     needs: [pint]
     # Legs: all three. The check has a branch for a CRLF runtime, and a Windows checkout can be CRLF.
     runs-on: ${{ matrix.os }}
@@ -483,8 +489,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
 
-      # Optional: delete this step in a repository that does not run `pest --parallel`.
+      # Optional: a repository that does not run `pest --parallel`, or does not receive the pest-testing
+      # skill, passes `global-test-symbols: false`.
       - name: Global test symbols
+        if: inputs.global-test-symbols
         run: php .claude/skills/pest-testing/scripts/check-global-test-symbols.php tests
 
       # `composer test` passes the extra argument to Pest, which writes the JUnit report the two
@@ -745,7 +753,7 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '') }}
+          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.mutate && 'mutate-ignore ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
           echo "Needed job results:"
