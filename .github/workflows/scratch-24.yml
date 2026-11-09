@@ -1,0 +1,45 @@
+name: Scratch 24 body checks
+
+# Scratch fixture for UAMS-Web/uams-ci-workflows#24. Never merged.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, ready_for_review, synchronize]
+
+permissions: {}
+
+jobs:
+  checks:
+    uses: ./.github/workflows/pr-body-checks.yml
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+
+  attribution-footer:
+    name: Attribution footer
+    needs: [checks]
+    if: always() && vars.RUN_REMOTE_CI != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the called job to have succeeded
+        env:
+          RESULT: ${{ needs.checks.outputs.footer }}
+        run: |
+          echo "Attribution footer job result: $RESULT"
+          [ "$RESULT" = "success" ]
+
+  closing-keywords:
+    name: Closing keywords
+    needs: [checks]
+    if: always() && vars.RUN_REMOTE_CI != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the called job to have succeeded
+        env:
+          RESULT: ${{ needs.checks.outputs.keywords }}
+        run: |
+          echo "Closing keywords job result: $RESULT"
+          [ "$RESULT" = "success" ]
