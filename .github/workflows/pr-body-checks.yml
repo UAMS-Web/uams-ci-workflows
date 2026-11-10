@@ -23,7 +23,11 @@ name: Pull-request body checks
 # names alone cannot be the required status check contexts `Attribution footer` and `Closing keywords`.
 # The workflow therefore exposes each job's result as an output (`footer` and `keywords`), and the
 # caller carries one small job per context, named exactly as the ruleset requires, that fails unless
-# that output is `success` (UAMS-Web/uams-ci-workflows#24).
+# that output is `success` (UAMS-Web/uams-ci-workflows#24). Each of those caller jobs carries
+# `if: always() && vars.RUN_REMOTE_CI != 'false'`: without the second clause they run on a runner and
+# fail while the switch is off, because a skipped output is not `success`. Measured on a private scratch
+# repository with the variable `false`: gated, all four jobs reported `skipped`; ungated, the two caller
+# jobs ran and failed.
 #
 # Every job checks out the caller's repository and runs the synced scripts under
 # `.claude/skills/writing-pull-requests/scripts/`, so the caller must carry them.
