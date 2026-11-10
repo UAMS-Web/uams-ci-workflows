@@ -18,3 +18,9 @@ A caller passes these with `with:`. Every input has a default, so a caller that 
 | `share-floor-seconds` | number | `10` | Summed class time below which the `Slowest class` step skips its share check. `0` never skips it. |
 | `encoding-guard`, `vitest`, `vite-build`, `mutation-smoke` | boolean | `false` | Switch on the optional job of that name. Each has a `<name>-command` input, except that `vitest-command` defaults to `npm run test:js` and `vite-build-command` to `npm run build`. |
 | `npm-version` | string | empty | An npm version range to install globally before `npm ci` in the Node jobs. |
+
+## PHP version
+
+Each PHP job reads `config.platform.php` from the calling repository's `composer.json` and passes its `major.minor` to the setup action, so a repository pinned to `8.3.x` runs on PHP 8.3 and one with no pin runs on PHP 8.4. A `config.platform.php` that does not start with `major.minor` fails the job. The jobs that install PHP through the caller's `./.github/actions/setup` pass it as that action's `php-version` input, which the action must accept. `floor-lint` is the exception: it installs `floor-lint-php`, the floor, not the development PHP.
+
+`shivammathur/setup-php` installs the newest patch of a minor and cannot install a patch, so the pin sets the minor only. Each job prints `PHP pinned: <pin>, installed: <version>` and raises a warning annotation when the two differ.
