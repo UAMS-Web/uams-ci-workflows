@@ -1,0 +1,10 @@
+name: Scratch 25
+on:
+  pull_request:
+jobs:
+  chain:
+    uses: ./.github/workflows/ci.yml
+    with:
+      linux-only: true
+      pest: false
+      mutate: false
