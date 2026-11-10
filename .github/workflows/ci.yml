@@ -213,11 +213,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: ${{ steps.php.outputs.minor }}
           coverage: none
           tools: composer:v2
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       # Fails when composer.json and composer.lock have drifted apart.
       - run: composer validate --no-check-publish --no-check-all
@@ -295,7 +319,33 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
       - run: composer test:pint
 
   rector:
@@ -310,7 +360,33 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
       - run: composer test:refactor
 
   phpstan:
@@ -325,7 +401,33 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
       - run: composer stan
 
   mutate-ignore:
@@ -341,7 +443,33 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       # Fails, naming the file and line, on a bare marker, a tail that names no mutator,
       # prose after a mutator list, and (on a CRLF runtime) a trailing marker. Prints the
@@ -378,9 +506,34 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
         with:
+          php-version: ${{ steps.php.outputs.minor }}
           coverage: pcov
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       # On a pull request or a push, mutate only the PHP files under mutate-paths that it adds,
       # changes or renames, read from HEAD against its first parent: the merge commit on a pull
@@ -487,7 +640,33 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       # Optional: a repository that does not run `pest --parallel`, or does not receive the pest-testing
       # skill, passes `global-test-symbols: false`.
@@ -543,7 +722,33 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       - uses: actions/setup-node@v7
         with:
@@ -608,7 +813,33 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       - uses: actions/setup-node@v7
         with:
@@ -644,9 +875,34 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
         with:
+          php-version: ${{ steps.php.outputs.minor }}
           coverage: pcov
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       - name: Run the mutation-tooling smoke
         env:
@@ -728,7 +984,33 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v7
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
       - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
 
       # An empty command is a configuration error and fails, never a silent pass.
       - name: Run phpcs
