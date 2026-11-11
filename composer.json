@@ -1,0 +1,11 @@
+{
+    "name": "uams/scratch-607",
+    "description": "Scratch fixture for the plugin-job runs of the published CI chain. Never merged.",
+    "require": { "php": ">=8.2" },
+    "scripts": {
+        "test:pint": "echo pint-ok",
+        "test:refactor": "echo rector-ok",
+        "stan": "echo phpstan-ok",
+        "test:phpcs": "echo phpcs-ok"
+    }
+}

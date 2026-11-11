@@ -1,0 +1,26 @@
+name: Scratch 612 runs
+
+# Scratch fixture for the test plan of UAMS-Web/uams-claude-skills#612. Never merged.
+
+on:
+  push:
+    branches: [scratch-612-runs]
+
+permissions:
+  contents: read
+
+jobs:
+  inputs-off:
+    uses: ./.github/workflows/ci.yml
+    with:
+      linux-only: true
+      mutate: false
+      global-test-symbols: false
+      pest-command: echo pest-ok
+
+  mutate-on:
+    uses: ./.github/workflows/ci.yml
+    with:
+      linux-only: true
+      global-test-symbols: false
+      pest-command: echo pest-ok
