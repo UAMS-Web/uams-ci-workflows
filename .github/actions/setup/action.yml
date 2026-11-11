@@ -1,0 +1,16 @@
+name: Setup
+description: Scratch copy of a caller setup action that declares only php-version, as aether-people does.
+inputs:
+  php-version:
+    description: PHP version
+    required: false
+    default: '8.4'
+runs:
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        coverage: none
+    - shell: bash
+      run: composer install --no-interaction --prefer-dist --no-progress

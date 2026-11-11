@@ -1,0 +1,8 @@
+{
+  "name": "scratch/pcov",
+  "require": { "php": "^8.4" },
+  "require-dev": { "pestphp/pest": "^4.0" },
+  "autoload": { "psr-4": { "Scratch\\": "src/" } },
+  "config": { "platform": { "php": "8.4.0" }, "allow-plugins": { "pestphp/pest-plugin": true } },
+  "scripts": { "mutate": "pest --mutate --covered-only --path=src" }
+}

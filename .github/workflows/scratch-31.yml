@@ -1,0 +1,38 @@
+name: Scratch 31
+on:
+  pull_request:
+jobs:
+  mutate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          php-version: '8.4'
+      - name: Load PCOV
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: pcov
+      - name: Check PCOV is loaded
+        run: |
+          php -m | tr -d '\015' | grep -qix pcov || { echo "::error::PCOV is not loaded after setup-php coverage: pcov"; exit 1; }
+          php -r 'echo "PCOV ", phpversion("pcov"), " on PHP ", PHP_VERSION, PHP_EOL;'
+      - name: Run mutation testing
+        run: composer mutate -- --min=100 2>&1 | tee mutate.log
+  without-fix:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          php-version: '8.4'
+          coverage: pcov
+      - name: Run mutation testing (expected to fail as in the bug)
+        run: composer mutate -- --min=100 2>&1 | tee mutate.log
