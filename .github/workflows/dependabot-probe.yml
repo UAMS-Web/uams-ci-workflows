@@ -1,0 +1,16 @@
+# Throwaway: pins an older action so Dependabot opens a real pull request, to show the footer check
+# skipping `dependabot[bot]` (UAMS-Web/uams-ci-workflows#24). Never triggered; removed once shown.
+name: Dependabot probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
