@@ -525,7 +525,17 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           php-version: ${{ steps.php.outputs.minor }}
+      # PCOV is loaded here and not through the caller's setup action, which declares only `php-version` and installs
+      # with `coverage: none` (UAMS-Web/uams-ci-workflows#31). Re-running setup-php on the installed minor only adds the driver.
+      - name: Load PCOV
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
           coverage: pcov
+      - name: Check PCOV is loaded
+        run: |
+          php -m | tr -d '\015' | grep -qix pcov || { echo "::error::PCOV is not loaded after setup-php coverage: pcov"; exit 1; }
+          php -r 'echo "PCOV ", phpversion("pcov"), " on PHP ", PHP_VERSION, PHP_EOL;'
       - name: Report pinned and installed PHP
         shell: bash
         env:
@@ -894,7 +904,17 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           php-version: ${{ steps.php.outputs.minor }}
+      # PCOV is loaded here and not through the caller's setup action, which declares only `php-version` and installs
+      # with `coverage: none` (UAMS-Web/uams-ci-workflows#31). Re-running setup-php on the installed minor only adds the driver.
+      - name: Load PCOV
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
           coverage: pcov
+      - name: Check PCOV is loaded
+        run: |
+          php -m | tr -d '\015' | grep -qix pcov || { echo "::error::PCOV is not loaded after setup-php coverage: pcov"; exit 1; }
+          php -r 'echo "PCOV ", phpversion("pcov"), " on PHP ", PHP_VERSION, PHP_EOL;'
       - name: Report pinned and installed PHP
         shell: bash
         env:

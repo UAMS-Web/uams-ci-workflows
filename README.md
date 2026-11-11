@@ -24,3 +24,7 @@ A caller passes these with `with:`. Every input has a default, so a caller that 
 Each PHP job reads `config.platform.php` from the calling repository's `composer.json` and passes its `major.minor` to the setup action, so a repository pinned to `8.3.x` runs on PHP 8.3 and one with no pin runs on PHP 8.4. A `config.platform.php` that does not start with `major.minor` fails the job. The jobs that install PHP through the caller's `./.github/actions/setup` pass it as that action's `php-version` input, which the action must accept. `floor-lint` is the exception: it installs `floor-lint-php`, the floor, not the development PHP.
 
 `shivammathur/setup-php` installs the newest patch of a minor and cannot install a patch, so the pin sets the minor only. Each job prints `PHP pinned: <pin>, installed: <version>` and raises a warning annotation when the two differ.
+
+## PCOV
+
+The `mutate` and `mutation-smoke` jobs load PCOV themselves, with a `shivammathur/setup-php` step after the caller's `./.github/actions/setup`, and fail with a message if `pcov` is not loaded. The caller's setup action therefore needs no `coverage` input; one that declares only `php-version` is enough.
