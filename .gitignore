@@ -1,0 +1,2 @@
+# Ephemeral worktrees (the `worktrees` rule) live inside the primary checkout.
+.claude/worktrees/
