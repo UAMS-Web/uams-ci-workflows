@@ -28,3 +28,22 @@ Each PHP job reads `config.platform.php` from the calling repository's `composer
 ## PCOV
 
 The `mutate` and `mutation-smoke` jobs load PCOV themselves, with a `shivammathur/setup-php` step after the caller's `./.github/actions/setup`, and fail with a message if `pcov` is not loaded. The caller's setup action therefore needs no `coverage` input; one that declares only `php-version` is enough.
+
+## Runner legs
+
+`runner-legs.yml` is a reusable workflow that checks a caller's own run of `ci.yml`: every job must have run on exactly the runners its `# Legs:` line names, given the inputs the caller passed. It reads the run's check runs, where a leg's name carries its runner and a job that never started keeps the literal `${{ matrix.os }}`, and it fails naming each job that ran on fewer or more runners. It proves which runners each job reached, not that each leg passed.
+
+A caller adds it as a job beside its call, pinned to the same tag as `ci.yml` (the job fails when the two pins name different commits), and lists it in the `needs:` of its `CI` job:
+
+```yaml
+  legs:
+    needs: [checks]
+    if: always()
+    uses: UAMS-Web/uams-ci-workflows/.github/workflows/runner-legs.yml@<the tag ci.yml is pinned to>
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+```
+
+`UAMS-Web/wordpress-plugin-template` is the caller that proves each release: it leaves every three-runner job on, and Dependabot moves its pin to each new tag, so its run on that bump shows each job on its runners at that release. The script is `scripts/check-runner-legs.mjs`; `node --test scripts/*.test.mjs` runs its tests, which plant a missing leg, an extra leg and an unstarted job in a list taken from a real run.
