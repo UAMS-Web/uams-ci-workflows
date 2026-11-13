@@ -1,0 +1,119 @@
+name: CI
+
+# The checks every plugin made from this template starts with. Public plugins run them
+# in Actions; a private plugin runs the shared local CI runner instead (see the README).
+#
+# The lint and unit chain is the shared one, `UAMS-Web/uams-ci-workflows`, called by the
+# `checks` job. One definition serves every UAMS-Web repository, so a plugin made from this
+# template does not carry a copy that drifts. The call switches on the three jobs only a
+# plugin runs (`floor-lint`, `download-archive`, `phpcs`), keeps the chain's defaults of
+# Linux, Windows and macOS legs and mutation testing, and runs the plugin's unit suite as
+# `composer test:unit`. The chain's own header lists every input and its default.
+#
+# `integration` stays here as a plain job beside the call, because its MySQL service and
+# WordPress download are not in the chain (UAMS-Web/uams-claude-skills#607).
+#
+# The last job, `CI`, is the one check a ruleset requires from this workflow (with the two
+# pull-request-body checks, `Attribution footer` and `Closing keywords`). It `needs:` the
+# call and `integration`, runs `if: always()`, and fails unless every needed job reports
+# `success`: a `skipped` or `cancelled` job fails it. The call ends in a `Chain result` job
+# that needs every job in the chain, so `checks` is `success` only when each of them
+# succeeded. Adding a plain job here means adding it to the `needs:` list of `CI`; the
+# `aggregate-needs` job in the chain fails the pull request when one is missing.
+# Do not rename `CI`, and do not rename `checks` without changing `needs:` below.
+#
+# What the plugin carries for the call, because the called jobs check out this repository:
+# `.github/actions/setup/action.yml`, the synced `.claude/skills` scripts, and the Composer
+# scripts `test:pint`, `test:refactor`, `stan`, `test:unit` and `test:phpcs`.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to a pull request cancels that pull request's stale run. Every other run gets a
+# group of its own, keyed on the commit, so a later push never cancels it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # The shared chain. Its checks report as `checks / <job name> (<operating system>)`.
+  checks:
+    # Pinned to a tag that carries the plugin inputs (UAMS-Web/uams-ci-workflows#21). To take a
+    # newer chain, move the pin to the next tag.
+    uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@v0.10.1
+    with:
+      mutate-ignore-paths: includes
+      floor-lint: true
+      floor-lint-php: '8.2'
+      download-archive: true
+      phpcs: true
+      pest-command: composer test:unit
+
+  integration:
+    name: Integration (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [single, multisite]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: uams_plugin_template_tests
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      WP_TESTS_ABSPATH: /tmp/wordpress
+      WP_TESTS_DB_HOST: 127.0.0.1
+      WP_MULTISITE: ${{ matrix.mode == 'multisite' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          integration: 'true'
+      # The WordPress core copy the suite boots; the version is the one the sites run
+      # (docs/DECISIONS.md), matching wp-phpunit in tests/Integration/composer.json.
+      - name: Download WordPress
+        env:
+          WP_VERSION: '7.0.8'
+        run: |
+          mkdir -p "$WP_TESTS_ABSPATH"
+          curl -fsSL "https://wordpress.org/wordpress-${WP_VERSION}.tar.gz" | tar -xz -C "$WP_TESTS_ABSPATH" --strip-components=1
+      - run: composer test:integration
+
+  # The one check a ruleset requires from this workflow.
+  ci:
+    name: CI
+    needs: [checks, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # `skipped` and `cancelled` fail as well as `failure`: a job that did not run proved nothing.
+      - name: Every needed job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Needed job results: $RESULTS"
+          # An empty list would run no iterations and pass having read nothing.
+          if [ -z "$RESULTS" ]; then echo "::error::No needed job results to read"; exit 1; fi
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A needed job reported $result"
+              exit 1
+            fi
+          done

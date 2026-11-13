@@ -1,0 +1,91 @@
+name: Runner legs
+
+# Checks that the caller's own run of `ci.yml` ran every job on the runners its `# Legs:` classification
+# names, given the inputs the caller passed (UAMS-Web/uams-ci-workflows#39). It reads the run's check runs,
+# so it proves which runners each job reached, not that each leg passed; the `Chain result` job says that.
+#
+# UAMS-Web/wordpress-plugin-template is the caller that proves each release: its `checks` job calls `ci.yml`
+# with every job classified for three runners left on, and Dependabot moves its pin to each new tag, so the
+# run on that bump is the release's three-runner run. A caller adds a job beside its call, and lists it in
+# the `needs:` of its `CI` job:
+#
+#   jobs:
+#     checks:
+#       uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@<tag>
+#     legs:
+#       needs: [checks]
+#       if: always()
+#       uses: UAMS-Web/uams-ci-workflows/.github/workflows/runner-legs.yml@<the same tag>
+#       permissions:
+#         contents: read
+#         actions: read
+#         checks: read
+#
+# The two pins must name the same commit, or the classification read here would not be the one that ran;
+# the job fails when they differ. `if: always()` makes it read a run whose chain failed: a job skipped
+# because a job it needs failed is skipped before its matrix expands, and that is a missing leg.
+#
+# The check reads the caller's workflow file at the run's commit for the call's `with:` inputs, and this
+# repository at the commit the call resolved to (`github.job_workflow_sha`) for `ci.yml` and the script.
+
+on:
+  workflow_call:
+    inputs:
+      caller-job:
+        description: The id of the caller's job that calls ci.yml; its check runs are named `<caller-job> / <job name>`.
+        type: string
+        default: checks
+
+permissions:
+  contents: read
+
+jobs:
+  legs:
+    name: Runner legs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: UAMS-Web/uams-ci-workflows
+          ref: ${{ github.job_workflow_sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      # `github.workflow_ref` is the caller's: `<owner>/<repo>/<path>@<ref>`.
+      - name: Read the caller's workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          path=${WORKFLOW_REF#"$REPO/"}
+          path=${path%%@*}
+          echo "Caller workflow: $REPO $path at $SHA"
+          gh api "repos/$REPO/contents/$path?ref=$SHA" -H 'Accept: application/vnd.github.raw' > "$RUNNER_TEMP/caller.yml"
+          [ -s "$RUNNER_TEMP/caller.yml" ] || { echo "::error::Read an empty caller workflow from $path"; exit 1; }
+
+      - name: Require the ci.yml pin to be this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLER_JOB: ${{ inputs.caller-job }}
+          HERE: ${{ github.job_workflow_sha }}
+        run: |
+          # `|| true`: a grep that matches nothing exits 1, and under `bash -e` that would end the step before the count is reported.
+          pins=$( (grep -oE 'uses:[[:space:]]*UAMS-Web/uams-ci-workflows/\.github/workflows/ci\.yml@[^[:space:]]+' "$RUNNER_TEMP/caller.yml" || true) | sed 's/.*@//' | sort -u)
+          count=$(printf '%s\n' "$pins" | grep -c . || true)
+          if [ "$count" -ne 1 ]; then echo "::error::Expected one ci.yml pin in the caller workflow, read $count: $pins"; exit 1; fi
+          pinned=$(gh api "repos/UAMS-Web/uams-ci-workflows/commits/$pins" --jq .sha)
+          echo "ci.yml is pinned at $pins ($pinned); this check is at $HERE"
+          [ "$pinned" = "$HERE" ] || { echo "::error::The caller pins ci.yml at $pins ($pinned) but runner-legs.yml at $HERE; pin both to the same tag"; exit 1; }
+
+      - name: Compare each job's runners with its classification
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CALLER_JOB: ${{ inputs.caller-job }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: node scripts/check-runner-legs.mjs --workflow .github/workflows/ci.yml --caller "$RUNNER_TEMP/caller.yml" --caller-job "$CALLER_JOB" --run "$REPO" "$RUN_ID"

@@ -1,0 +1,29 @@
+name: Script tests
+
+# Runs the tests of the scripts under `scripts/`, which include the planted-mismatch controls of
+# `check-runner-legs.mjs` (UAMS-Web/uams-ci-workflows#39). They read fixtures and spawn no network call,
+# so one Ubuntu leg is enough. A change to `ci.yml` runs them too, because one test reads that file and
+# fails when a job in it carries no `# Legs:` classification.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/runner-legs.yml'
+      - '.github/workflows/script-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Script tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: node --test scripts/
