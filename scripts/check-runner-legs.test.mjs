@@ -1,4 +1,4 @@
-// Run with `node --test scripts/`. The fixtures are a real run: UAMS-Web/wordpress-plugin-template's `CI`
+// Run with `node --test scripts/*.test.mjs`. The fixtures are a real run: UAMS-Web/wordpress-plugin-template's `CI`
 // run on 7b964ac4fd546666e2822735a153e652ebb6c893, its caller workflow at that commit, and `ci.yml` at
 // v0.10.1, the tag that caller pins. The planted mismatches are edits of that run's check run names.
 

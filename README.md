@@ -46,4 +46,4 @@ A caller adds it as a job beside its call, pinned to the same tag as `ci.yml` (t
       checks: read
 ```
 
-`UAMS-Web/wordpress-plugin-template` is the caller that proves each release: it leaves every three-runner job on, and Dependabot moves its pin to each new tag, so its run on that bump shows each job on its runners at that release. The script is `scripts/check-runner-legs.mjs`; `node --test scripts/` runs its tests, which plant a missing leg, an extra leg and an unstarted job in a list taken from a real run.
+`UAMS-Web/wordpress-plugin-template` is the caller that proves each release: it leaves every three-runner job on, and Dependabot moves its pin to each new tag, so its run on that bump shows each job on its runners at that release. The script is `scripts/check-runner-legs.mjs`; `node --test scripts/*.test.mjs` runs its tests, which plant a missing leg, an extra leg and an unstarted job in a list taken from a real run.
