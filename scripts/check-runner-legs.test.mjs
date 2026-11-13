@@ -95,6 +95,27 @@ test('all-platform-jobs and windows-jobs widen and narrow a job', () => {
     assert.deepEqual(expectedRunners(workflow.jobs.pint, { ...d, 'all-platform-jobs': 'pint-x' }), ['ubuntu-latest'])
 })
 
+test('a three-runner job whose runs-on was fixed to one runner fails', () => {
+    const text = readFileSync(workflowPath, 'utf8')
+        .replace('    name: Pest (${{ matrix.os }})', '    name: Pest')
+        .replace(/(  pest:\n(?:    .*\n)*?)    runs-on: \$\{\{ matrix\.os \}\}/, '$1    runs-on: ubuntu-latest')
+    const narrowed = parseWorkflow(text)
+    assert.equal(narrowed.jobs.pest.runsOn, 'ubuntu-latest', 'the edit applied')
+    const names = realNames.filter((n) => !n.startsWith('checks / Pest (')).concat('checks / Pest')
+    const findings = compareLegs(narrowed, caller, names).findings
+    assert.equal(findings.length, 1)
+    assert.match(findings[0], /job `pest` ran on ubuntu-latest, expected macos-latest, ubuntu-latest, windows-latest \(missing macos-latest, windows-latest\)/)
+})
+
+test('a gate written as an expression, and list and boolean inputs in any case, read as Actions reads them', () => {
+    const text = readFileSync(workflowPath, 'utf8').replace('    if: inputs.vitest', '    if: ${{ inputs.vitest }}')
+    assert.equal(parseWorkflow(text).jobs.vitest.gate, 'vitest')
+    const d = workflow.defaults
+    assert.deepEqual(expectedRunners(workflow.jobs.pint, { ...d, 'all-platform-jobs': 'Pint' }), ['ubuntu-latest', 'windows-latest', 'macos-latest'])
+    assert.deepEqual(expectedRunners(workflow.jobs.pest, { ...d, 'linux-only': 'True' }), ['ubuntu-latest'])
+    assert.equal(expectedRunners(workflow.jobs.vitest, { ...d, vitest: 'TRUE' }).length, 3)
+})
+
 test('every job in the workflow this repository publishes is classified', () => {
     const live = parseWorkflow(readFileSync(join(here, '..', '.github', 'workflows', 'ci.yml'), 'utf8'))
     const ids = Object.keys(live.jobs)

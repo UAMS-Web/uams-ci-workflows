@@ -65,7 +65,7 @@ export function parseWorkflow(text) {
         if (m) { job = { id: m[1], name: m[1], gate: null, runsOn: null, legs: null }; jobs[job.id] = job; continue }
         if (!job) continue
         if ((m = line.match(/^ {4}name:\s*(.*)$/))) job.name = unquote(m[1])
-        else if ((m = line.match(/^ {4}if:\s*inputs\.([A-Za-z0-9_-]+)\s*$/))) job.gate = m[1]
+        else if ((m = line.match(/^ {4}if:\s*(?:\$\{\{\s*)?inputs\.([A-Za-z0-9_-]+)\s*(?:\}\})?\s*$/))) job.gate = m[1]
         else if ((m = line.match(/^ {4}runs-on:\s*(.*)$/))) job.runsOn = unquote(m[1])
         else if ((m = line.match(/^ {4}# Legs:\s*(.*)$/))) job.legs = m[1]
     }
@@ -115,19 +115,32 @@ export function parseCallerInputs(text, callerJob = 'checks') {
     return found ? inputs : null
 }
 
-/** Whether a list input (space-separated job ids) names the job, as ci.yml's `contains(format(' {0} ', ...))` does. */
+/**
+ * Whether a list input (space-separated job ids) names the job, as ci.yml's `contains(format(' {0} ', ...))`
+ * does. `contains()` ignores case, so this does too.
+ */
 function names(list, id) {
-    return ` ${list ?? ''} `.includes(` ${id} `)
+    return ` ${list ?? ''} `.toLowerCase().includes(` ${id.toLowerCase()} `)
 }
 
-/** The runners a job should run on, or 'off' when its input switched it off. */
+/** A boolean input as Actions reads it from a caller's `with:`; YAML also accepts `True` and `TRUE`. */
+function isTrue(value) {
+    return String(value ?? '').toLowerCase() === 'true'
+}
+
+/**
+ * The runners a job should run on, or 'off' when its input switched it off. The expectation comes from the
+ * classification alone, never from `runs-on`: a job classified for three runners whose `runs-on` was fixed to
+ * one runner has lost two legs, and must be reported, not expected.
+ */
 export function expectedRunners(job, inputs) {
-    if (job.gate && inputs[job.gate] !== 'true') return 'off'
-    if (!/^\$\{\{\s*matrix\.os\s*\}\}$/.test(job.runsOn ?? '')) return [job.runsOn]
+    if (job.gate && !isTrue(inputs[job.gate])) return 'off'
+    const fixed = !/^\$\{\{\s*matrix\.os\s*\}\}$/.test(job.runsOn ?? '')
     if (job.classification === 'pinned') return ['ubuntu-latest']
+    if (fixed) return job.classification === 'all' ? [...ALL_RUNNERS] : ['ubuntu-latest']
     if (names(inputs['all-platform-jobs'], job.id)) return [...ALL_RUNNERS]
     if (names(inputs['windows-jobs'], job.id)) return ['ubuntu-latest', 'windows-latest']
-    if (job.classification === 'all') return inputs['linux-only'] === 'true' ? ['ubuntu-latest'] : [...ALL_RUNNERS]
+    if (job.classification === 'all') return isTrue(inputs['linux-only']) ? ['ubuntu-latest'] : [...ALL_RUNNERS]
     return ['ubuntu-latest']
 }
 

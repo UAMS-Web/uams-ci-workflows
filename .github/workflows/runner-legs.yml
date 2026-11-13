@@ -36,8 +36,12 @@ on:
         type: string
         default: checks
 
+# A called workflow can only narrow the token the caller grants, so these must be named here as well as in
+# the caller's job: `actions: read` for the run's check suite id, `checks: read` for its check runs.
 permissions:
   contents: read
+  actions: read
+  checks: read
 
 jobs:
   legs:
@@ -75,7 +79,7 @@ jobs:
           HERE: ${{ github.job_workflow_sha }}
         run: |
           # `|| true`: a grep that matches nothing exits 1, and under `bash -e` that would end the step before the count is reported.
-          pins=$( (grep -oE 'uses:[[:space:]]*UAMS-Web/uams-ci-workflows/\.github/workflows/ci\.yml@[^[:space:]]+' "$RUNNER_TEMP/caller.yml" || true) | sed 's/.*@//' | sort -u)
+          pins=$( (grep -oE "uses:[[:space:]]*['\"]?UAMS-Web/uams-ci-workflows/\.github/workflows/ci\.yml@[^[:space:]'\"]+" "$RUNNER_TEMP/caller.yml" || true) | sed 's/.*@//' | sort -u)
           count=$(printf '%s\n' "$pins" | grep -c . || true)
           if [ "$count" -ne 1 ]; then echo "::error::Expected one ci.yml pin in the caller workflow, read $count: $pins"; exit 1; fi
           pinned=$(gh api "repos/UAMS-Web/uams-ci-workflows/commits/$pins" --jq .sha)
