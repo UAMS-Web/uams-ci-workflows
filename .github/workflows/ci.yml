@@ -62,7 +62,9 @@ name: CI chain
 # The `mutate` job is on unless the caller passes `mutate: false`. A repository whose source holds no code a
 # mutator changes (an add-on template with a stub) has nothing to mutate, and the job fails a run that created
 # no mutants, so it needs a way to opt out. `mutate: false` skips the job on every leg, and skips the `mutate-ignore` job with it (UAMS-Web/uams-claude-skills#612):
-# annotations only matter where a mutation run reads them, and the check runs a script of the `pest-testing` skill.
+# the check runs a script of the `pest-testing` skill, which a caller without that skill does not have.
+# A caller that has the skill and carries `@pest-mutate-ignore` annotations keeps the check with `mutate-ignore: true`
+# (UAMS-Web/uams-ci-workflows#40): the check only tokenizes source and runs no suite, so it does not need `mutate`.
 #
 # The `mutate-ignore` job scans whichever of `app`, `src` and `tests` exist unless the caller names paths in
 # `mutate-ignore-paths` (UAMS-Web/uams-claude-skills#534), for a source tree elsewhere such as a plugin's `includes`.
@@ -112,6 +114,10 @@ on:
         description: Run the mutate job. Pass false in a repository whose source holds no code a mutator changes.
         type: boolean
         default: true
+      mutate-ignore:
+        description: Run the mutate-ignore job even when mutate is false, which audits the `@pest-mutate-ignore` annotations without running a mutation pass (UAMS-Web/uams-ci-workflows#40). The job runs whenever mutate is true, so this input only matters with mutate false. Needs the `pest-testing` skill's check-mutate-ignore.php, so a caller without that skill leaves it false.
+        type: boolean
+        default: false
       mutate-full-timeout-minutes:
         description: The timeout, in minutes, of the mutate job on a scheduled or manually dispatched run, which mutates everything composer mutate covers (UAMS-Web/uams-claude-skills#532). A pull request or a push mutates only changed files and keeps 45.
         type: number
@@ -432,7 +438,7 @@ jobs:
 
   mutate-ignore:
     name: Mutation annotations (none inert) (${{ matrix.os }})
-    if: inputs.mutate
+    if: inputs.mutate || inputs.mutate-ignore
     needs: [pint]
     # Legs: all three. The check has a branch for a CRLF runtime, and a Windows checkout can be CRLF.
     runs-on: ${{ matrix.os }}
@@ -1055,7 +1061,7 @@ jobs:
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.mutate && 'mutate-ignore ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '') }}
+          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', (!inputs.mutate && !inputs.mutate-ignore) && 'mutate-ignore ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
           echo "Needed job results:"
