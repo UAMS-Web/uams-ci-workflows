@@ -1,0 +1,6 @@
+{
+    "name": "scratch/forty",
+    "description": "Scratch caller for uams-ci-workflows#40",
+    "license": "MIT",
+    "scripts": { "test:pint": "echo pint-ok" }
+}

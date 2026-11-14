@@ -1,0 +1,12 @@
+name: Setup
+inputs:
+  php-version:
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        coverage: none
+        tools: composer:v2

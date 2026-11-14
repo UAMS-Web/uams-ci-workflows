@@ -1,0 +1,17 @@
+name: Scratch 49
+on:
+  pull_request:
+jobs:
+  checks:
+    uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@49-runner-legs-own-commit
+    with:
+      mutate: false
+      linux-only: true
+  legs:
+    needs: [checks]
+    if: always()
+    uses: UAMS-Web/uams-ci-workflows/.github/workflows/runner-legs.yml@49-runner-legs-own-commit
+    permissions:
+      contents: read
+      actions: read
+      checks: read
