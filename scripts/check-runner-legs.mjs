@@ -39,7 +39,7 @@ function stripComment(value) {
 }
 
 /**
- * Reads the reusable workflow: each input's default, and each job's name, gate, runner and classification.
+ * Reads the reusable workflow: each input's default, and each job's name, gates, runner and classification.
  * Line-based, for the shape ci.yml is published in: two-space job ids under `jobs:`, four-space job keys.
  */
 export function parseWorkflow(text) {
@@ -62,10 +62,10 @@ export function parseWorkflow(text) {
         }
         if (section !== 'jobs') continue
         let m = line.match(/^ {2}([A-Za-z0-9_-]+):\s*$/)
-        if (m) { job = { id: m[1], name: m[1], gate: null, runsOn: null, legs: null }; jobs[job.id] = job; continue }
+        if (m) { job = { id: m[1], name: m[1], gates: [], runsOn: null, legs: null }; jobs[job.id] = job; continue }
         if (!job) continue
         if ((m = line.match(/^ {4}name:\s*(.*)$/))) job.name = unquote(m[1])
-        else if ((m = line.match(/^ {4}if:\s*(?:\$\{\{\s*)?inputs\.([A-Za-z0-9_-]+)\s*(?:\}\})?\s*$/))) job.gate = m[1]
+        else if ((m = line.match(/^ {4}if:\s*(?:\$\{\{\s*)?(inputs\.[A-Za-z0-9_-]+(?:\s*\|\|\s*inputs\.[A-Za-z0-9_-]+)*)\s*(?:\}\})?\s*$/))) job.gates = [...m[1].matchAll(/inputs\.([A-Za-z0-9_-]+)/g)].map((g) => g[1])
         else if ((m = line.match(/^ {4}runs-on:\s*(.*)$/))) job.runsOn = unquote(m[1])
         else if ((m = line.match(/^ {4}# Legs:\s*(.*)$/))) job.legs = m[1]
     }
@@ -134,7 +134,8 @@ function isTrue(value) {
  * one runner has lost two legs, and must be reported, not expected.
  */
 export function expectedRunners(job, inputs) {
-    if (job.gate && !isTrue(inputs[job.gate])) return 'off'
+    // A gate of `inputs.a || inputs.b` switches the job off only when every named input is false.
+    if (job.gates.length && !job.gates.some((g) => isTrue(inputs[g]))) return 'off'
     const fixed = !/^\$\{\{\s*matrix\.os\s*\}\}$/.test(job.runsOn ?? '')
     if (job.classification === 'pinned') return ['ubuntu-latest']
     if (fixed) return job.classification === 'all' ? [...ALL_RUNNERS] : ['ubuntu-latest']
@@ -191,7 +192,7 @@ export function compareLegs(workflow, callerInputs, checkRunNames, callerJob = '
         const notStarted = got.includes(NOT_STARTED)
         if (want === 'off') {
             report.push(`${j.id}: off by its input; ran on ${ran.length ? ran.join(', ') : 'none'}`)
-            if (ran.length) findings.push(`job \`${j.id}\` is switched off by \`${j.gate}\` but ran on ${ran.join(', ')}`)
+            if (ran.length) findings.push(`job \`${j.id}\` is switched off by \`${j.gates.join(' || ')}\` but ran on ${ran.join(', ')}`)
             continue
         }
         const expected = [...want].sort()
