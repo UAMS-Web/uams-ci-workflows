@@ -26,7 +26,8 @@ name: Runner legs
 # because a job it needs failed is skipped before its matrix expands, and that is a missing leg.
 #
 # The check reads the caller's workflow file at the run's commit for the call's `with:` inputs, and this
-# repository at the commit the call resolved to (`github.job_workflow_sha`) for `ci.yml` and the script.
+# repository at the commit its own `uses:` line resolves to for `ci.yml` and the script. `github.job_workflow_sha`
+# is empty in a called workflow, so that line is read from the caller's file.
 
 on:
   workflow_call:
@@ -49,15 +50,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-        with:
-          repository: UAMS-Web/uams-ci-workflows
-          ref: ${{ github.job_workflow_sha }}
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-
       # `github.workflow_ref` is the caller's: `<owner>/<repo>/<path>@<ref>`.
       - name: Read the caller's workflow
         env:
@@ -72,19 +64,38 @@ jobs:
           gh api "repos/$REPO/contents/$path?ref=$SHA" -H 'Accept: application/vnd.github.raw' > "$RUNNER_TEMP/caller.yml"
           [ -s "$RUNNER_TEMP/caller.yml" ] || { echo "::error::Read an empty caller workflow from $path"; exit 1; }
 
-      - name: Require the ci.yml pin to be this commit
+      # `github.job_workflow_sha` is empty in a called workflow (measured in UAMS-Web/wordpress-plugin-template#35,
+      # run 43554368217), so this file's own commit is read from the caller's `uses:` line for it.
+      - name: Resolve this workflow's commit and require the ci.yml pin to match
+        id: pins
         env:
           GH_TOKEN: ${{ github.token }}
-          CALLER_JOB: ${{ inputs.caller-job }}
-          HERE: ${{ github.job_workflow_sha }}
         run: |
-          # `|| true`: a grep that matches nothing exits 1, and under `bash -e` that would end the step before the count is reported.
-          pins=$( (grep -oE "uses:[[:space:]]*['\"]?UAMS-Web/uams-ci-workflows/\.github/workflows/ci\.yml@[^[:space:]'\"]+" "$RUNNER_TEMP/caller.yml" || true) | sed 's/.*@//' | sort -u)
-          count=$(printf '%s\n' "$pins" | grep -c . || true)
-          if [ "$count" -ne 1 ]; then echo "::error::Expected one ci.yml pin in the caller workflow, read $count: $pins"; exit 1; fi
-          pinned=$(gh api "repos/UAMS-Web/uams-ci-workflows/commits/$pins" --jq .sha)
-          echo "ci.yml is pinned at $pins ($pinned); this check is at $HERE"
-          [ "$pinned" = "$HERE" ] || { echo "::error::The caller pins ci.yml at $pins ($pinned) but runner-legs.yml at $HERE; pin both to the same tag"; exit 1; }
+          pin() {
+            # `|| true`: a grep that matches nothing exits 1, and under `bash -e` that would end the step before the count is reported.
+            (grep -oE "uses:[[:space:]]*['\"]?UAMS-Web/uams-ci-workflows/\.github/workflows/$1@[^[:space:]'\"]+" "$RUNNER_TEMP/caller.yml" || true) | sed 's/.*@//' | sort -u
+          }
+          ci_pins=$(pin ci.yml)
+          legs_pins=$(pin runner-legs.yml)
+          for name in ci_pins legs_pins; do
+            value=${!name}
+            count=$(printf '%s\n' "$value" | grep -c . || true)
+            if [ "$count" -ne 1 ]; then echo "::error::Expected one pin for $name in the caller workflow, read $count: $value"; exit 1; fi
+          done
+          ci_sha=$(gh api "repos/UAMS-Web/uams-ci-workflows/commits/$ci_pins" --jq .sha)
+          here=$(gh api "repos/UAMS-Web/uams-ci-workflows/commits/$legs_pins" --jq .sha)
+          echo "ci.yml is pinned at $ci_pins ($ci_sha); runner-legs.yml at $legs_pins ($here)"
+          [ -n "$here" ] && [ "$ci_sha" = "$here" ] || { echo "::error::The caller pins ci.yml at $ci_pins ($ci_sha) but runner-legs.yml at $legs_pins ($here); pin both to the same tag"; exit 1; }
+          echo "sha=$here" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          repository: UAMS-Web/uams-ci-workflows
+          ref: ${{ steps.pins.outputs.sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
 
       - name: Compare each job's runners with its classification
         env:
