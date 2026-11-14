@@ -109,11 +109,22 @@ test('a three-runner job whose runs-on was fixed to one runner fails', () => {
 
 test('a gate written as an expression, and list and boolean inputs in any case, read as Actions reads them', () => {
     const text = readFileSync(workflowPath, 'utf8').replace('    if: inputs.vitest', '    if: ${{ inputs.vitest }}')
-    assert.equal(parseWorkflow(text).jobs.vitest.gate, 'vitest')
+    assert.deepEqual(parseWorkflow(text).jobs.vitest.gates, ['vitest'])
     const d = workflow.defaults
     assert.deepEqual(expectedRunners(workflow.jobs.pint, { ...d, 'all-platform-jobs': 'Pint' }), ['ubuntu-latest', 'windows-latest', 'macos-latest'])
     assert.deepEqual(expectedRunners(workflow.jobs.pest, { ...d, 'linux-only': 'True' }), ['ubuntu-latest'])
     assert.equal(expectedRunners(workflow.jobs.vitest, { ...d, vitest: 'TRUE' }).length, 3)
+})
+
+test('a gate of two inputs joined by || is off only when both are false', () => {
+    const live = parseWorkflow(readFileSync(join(here, '..', '.github', 'workflows', 'ci.yml'), 'utf8'))
+    const job = live.jobs['mutate-ignore']
+    const d = live.defaults
+    assert.deepEqual(job.gates, ['mutate', 'mutate-ignore'])
+    assert.equal(expectedRunners(job, { ...d, mutate: 'false', 'mutate-ignore': 'false' }), 'off')
+    assert.equal(expectedRunners(job, { ...d, mutate: 'false', 'mutate-ignore': 'true' }).length, 3)
+    assert.equal(expectedRunners(job, { ...d, mutate: 'true', 'mutate-ignore': 'false' }).length, 3)
+    assert.deepEqual(expectedRunners(job, { ...d, mutate: 'false', 'mutate-ignore': 'true', 'linux-only': 'true' }), ['ubuntu-latest'])
 })
 
 test('every job in the workflow this repository publishes is classified', () => {
