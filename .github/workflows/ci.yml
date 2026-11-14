@@ -251,7 +251,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -357,7 +359,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -398,7 +402,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -439,7 +445,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -481,7 +489,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -544,7 +554,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -688,7 +700,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -770,7 +784,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -861,7 +877,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -923,7 +941,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -1042,7 +1062,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
@@ -1130,7 +1152,9 @@ jobs:
             echo "minor=8.4" >> "$GITHUB_OUTPUT"
             echo "No config.platform.php in composer.json; installing the default PHP 8.4."
           else
-            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+') || { echo "::error::config.platform.php is '$pin', which does not start with major.minor"; exit 1; }
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
             echo "pinned=$pin" >> "$GITHUB_OUTPUT"
             echo "minor=$minor" >> "$GITHUB_OUTPUT"
             echo "config.platform.php is $pin; installing PHP $minor."
