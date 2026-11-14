@@ -6,6 +6,7 @@ jobs:
     uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@49-runner-legs-own-commit
     with:
       mutate: false
+      pest: false
       linux-only: true
   legs:
     needs: [checks]
