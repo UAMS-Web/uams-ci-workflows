@@ -554,7 +554,7 @@ jobs:
           MUTATE_PATHS: ${{ inputs.mutate-paths }}
         run: |
           single='[{"id":0,"n":1,"of":1,"paths":""}]'
-          if ! [[ "$SHARDS" =~ ^[0-9]+$ ]] || [ "$SHARDS" -lt 1 ]; then
+          if ! [[ "$SHARDS" =~ ^[0-9]{1,6}$ ]] || [ "$SHARDS" -lt 1 ]; then
             echo "::error::mutate-shards is '$SHARDS', which is not a whole number of 1 or more"
             exit 1
           fi
@@ -578,8 +578,8 @@ jobs:
           while IFS= read -r -d '' f; do
             [[ "$f" == *.php ]] || continue
             case "$f" in
-              *,*|*'"'*|*\\*|*$'\n'*)
-                echo "::error::A path holds a comma, a double quote, a backslash or a newline, which the shard list cannot carry: $f"
+              *,*|*'"'*|*\\*|*[[:cntrl:]]*)
+                echo "::error::A path holds a comma, a double quote, a backslash or a control character, which the shard list cannot carry: $f"
                 exit 1
                 ;;
             esac
@@ -781,7 +781,7 @@ jobs:
         env:
           MODE: ${{ steps.select.outputs.mode }}
         run: |
-          if { [ "$MODE" = "changed" ] || [ "$MODE" = "shard" ]; } && sed "s/$(printf '\033')\[[0-9;]*m//g" mutate.log | grep -Eq '(^|[^0-9])0 Mutations for 0 Files created' \
+          if [ "$MODE" = "changed" ] && sed "s/$(printf '\033')\[[0-9;]*m//g" mutate.log | grep -Eq '(^|[^0-9])0 Mutations for 0 Files created' \
             && php -r 'exit(extension_loaded("pcov") && ini_get("pcov.enabled") ? 0 : 1);'; then
             echo "The changed files produced no mutants: they hold no code a mutator changes, so there is nothing to test."
             exit 0

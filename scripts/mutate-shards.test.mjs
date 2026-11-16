@@ -157,6 +157,23 @@ test('a name holding a double quote or a backslash fails (POSIX file systems)', 
     }
 })
 
+test('a name holding a tab fails, because the size line is tab-separated', { skip: process.platform === 'win32' }, () => {
+    const r = plan({ shards: '2', files: { 'src/t	ab.php': 5, 'src/C.php': 5 } })
+    assert.equal(r.status, 1)
+    assert.match(r.stdout, /::error::A path holds a comma/)
+})
+
+test('a count too long to compare fails with the friendly message', () => {
+    const r = plan({ shards: '9'.repeat(25), files: { 'src/A.php': 1 } })
+    assert.equal(r.status, 1)
+    assert.match(r.stdout, /not a whole number of 1 or more/)
+})
+
+test('a shard leg takes the zero-mutants pass only for changed files', () => {
+    assert.doesNotMatch(jobBlocks(ciText).mutate, /"\$MODE" = "shard" \]; \} && sed/)
+    assert.match(jobBlocks(ciText).mutate, /\[ "\$MODE" = "changed" \] && sed/)
+})
+
 // A small seeded generator, so a failure names its seed and reruns the same way.
 function rng(seed) {
     let s = seed >>> 0
