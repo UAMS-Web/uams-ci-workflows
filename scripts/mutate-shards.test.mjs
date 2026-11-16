@@ -16,7 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const ciText = readFileSync(join(here, '..', '.github', 'workflows', 'ci.yml'), 'utf8')
 const script = planScript(ciText)
 
-const SINGLE = [{ id: 0, of: 1, paths: '' }]
+const SINGLE = [{ id: 0, n: 1, of: 1, paths: '' }]
 
 // Runs the step in a scratch repository holding `files` (a name to a size in bytes map), every one tracked.
 function plan({ files = {}, untracked = {}, shards = '4', event = 'workflow_dispatch', paths = 'src' }) {
@@ -195,6 +195,36 @@ test('over generated trees every file lands in exactly one shard, none is empty,
 test('the same tree plans the same way twice', () => {
     const files = { 'src/A.php': 7, 'src/B.php': 7, 'src/C.php': 7, 'src/D.php': 3 }
     assert.deepEqual(plan({ shards: '3', files }).shards, plan({ shards: '3', files }).shards)
+})
+
+test('every shard carries its 1-based number, which the job name reads', () => {
+    const r = plan({ shards: '3', files: { 'src/A.php': 3, 'src/B.php': 2, 'src/C.php': 1 } })
+    assert.deepEqual(
+        r.shards.map((s) => [s.id, s.n, s.of]),
+        [
+            [0, 1, 3],
+            [1, 2, 3],
+            [2, 3, 3],
+        ],
+    )
+    assert.match(jobBlocks(ciText).mutate, /format\(', shard \{0\} of \{1\}', matrix\.shard\.n, matrix\.shard\.of\)/)
+})
+
+// GitHub Actions expressions have no arithmetic: `matrix.shard.id + 1` is refused when the workflow is parsed, which a
+// local run of a step never reaches (found on the first dispatch of UAMS-Web/uams-ci-workflows#62).
+test('no expression in the workflow uses an arithmetic operator', () => {
+    const offenders = []
+    let scanned = 0
+    for (const line of ciText.split('\n')) {
+        // Lazy to the first `}}`, because a `format('{0}')` string holds single braces that end a `[^}]*` scan early.
+        for (const m of line.matchAll(/\$\{\{(.*?)\}\}/g)) {
+            scanned++
+            const bare = m[1].replace(/'(?:[^']|'')*'/g, "''")
+            if (/\s[+*\/%]\s/.test(bare)) offenders.push(m[0])
+        }
+    }
+    assert.ok(scanned > 100, `the scan read ${scanned} expressions`)
+    assert.deepEqual(offenders, [])
 })
 
 test('the aggregate job reads mutate-plan and treats it as switched off with mutate', () => {

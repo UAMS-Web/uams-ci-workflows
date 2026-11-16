@@ -553,7 +553,7 @@ jobs:
           SHARDS: ${{ inputs.mutate-shards }}
           MUTATE_PATHS: ${{ inputs.mutate-paths }}
         run: |
-          single='[{"id":0,"of":1,"paths":""}]'
+          single='[{"id":0,"n":1,"of":1,"paths":""}]'
           if ! [[ "$SHARDS" =~ ^[0-9]+$ ]] || [ "$SHARDS" -lt 1 ]; then
             echo "::error::mutate-shards is '$SHARDS', which is not a whole number of 1 or more"
             exit 1
@@ -607,7 +607,7 @@ jobs:
             END {
               out = "["
               for (i = 0; i < n; i++) {
-                out = out (i ? "," : "") "{\"id\":" i ",\"of\":" n ",\"paths\":\"" paths[i] "\"}"
+                out = out (i ? "," : "") "{\"id\":" i ",\"n\":" i + 1 ",\"of\":" n ",\"paths\":\"" paths[i] "\"}"
                 printf "shard %d of %d: %d file(s), %d bytes\n", i + 1, n, files[i], load[i] > "/dev/stderr"
               }
               print out "]"
@@ -616,7 +616,7 @@ jobs:
           echo "shards=$json" >> "$GITHUB_OUTPUT"
 
   mutate:
-    name: Mutation score (changed files, with PCOV) (${{ matrix.os }}${{ matrix.shard.of > 1 && format(', shard {0} of {1}', matrix.shard.id + 1, matrix.shard.of) || '' }})
+    name: Mutation score (changed files, with PCOV) (${{ matrix.os }}${{ matrix.shard.of > 1 && format(', shard {0} of {1}', matrix.shard.n, matrix.shard.of) || '' }})
     if: inputs.mutate
     needs: [rector, phpstan, mutate-plan]
     # Legs: Ubuntu only, whatever the caller passes. A Windows leg scored mutants the tests never detect as killed (UAMS-Web/uams-ci-workflows#13), so `all-platform-jobs`, `windows-jobs` and `linux-only` do not reach this matrix.
