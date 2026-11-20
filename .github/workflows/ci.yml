@@ -81,6 +81,15 @@ name: CI chain
 # The full pass is what catches drift from a dependency or tooling change, so a caller adds a `schedule:` trigger to its
 # own `ci.yml` (the caller template shows one). Any other event, and a pushed commit with no parent, mutates everything.
 #
+# Two inputs serve a caller that turns mutation on before its score can gate merges (UAMS-Web/uams-ci-workflows#68).
+# `mutate-advisory: true` runs the `mutate` job, every shard of it, and keeps its result out of the `result` job:
+# the job still reports its own status, and `result` prints a warning for it in place of failing. The `mutate-plan`
+# job still gates: it fails on a setup error (a `mutate-shards` value that is not a count, no tracked PHP file under
+# `mutate-paths`, a path the shard list cannot carry), not on a score. `mutate-submodules` names the caller's
+# submodules the `mutate` job checks out, by path, and `mutate-submodules-recursive` adds the ones nested in them. A
+# private submodule needs the `mutate-submodules-token` secret, passed by name, since the job's own token reads only
+# the calling repository.
+#
 # The `pest` job is on unless the caller passes `pest: false`. A repository whose suite needs what the called
 # chain cannot give it (private submodules, a secret, a sharded run with its own reports) keeps its own Pest
 # jobs as plain jobs beside the call and lists them in the `needs:` of its `CI` job. `pest: false` skips the job
@@ -143,6 +152,18 @@ on:
         description: Space-separated paths the mutate job selects changed PHP files from, the paths `composer mutate` passes to --path.
         type: string
         default: src
+      mutate-advisory:
+        description: Run the mutate job, every shard of it, without its result gating the result job (UAMS-Web/uams-ci-workflows#68). The job still reports its own status, and the result job prints a warning for a mutate result other than success in place of failing. The default false keeps a failing mutate job failing the result job.
+        type: boolean
+        default: false
+      mutate-submodules:
+        description: Space-separated paths of the caller's submodules the mutate job checks out, at depth 1 (UAMS-Web/uams-ci-workflows#68). The default, empty, checks out none. A path that .gitmodules does not register as a submodule fails the job. A private submodule also needs the mutate-submodules-token secret.
+        type: string
+        default: ''
+      mutate-submodules-recursive:
+        description: Check out the submodules nested inside the ones mutate-submodules names as well (UAMS-Web/uams-ci-workflows#68). It does nothing while mutate-submodules is empty.
+        type: boolean
+        default: false
       encoding-guard:
         description: Run the encoding-guard job, which runs encoding-guard-command.
         type: boolean
@@ -231,6 +252,10 @@ on:
         description: Paths the dev-lint job skips, space-separated and relative to the repository root, with no spaces inside a path. vendor and node_modules are always skipped.
         type: string
         default: ''
+    secrets:
+      mutate-submodules-token:
+        description: A token the mutate job fetches the submodules mutate-submodules names with, in place of the job's own, for a submodule in a private repository (UAMS-Web/uams-ci-workflows#68). It needs read access to every submodule named. Without it the fetch uses the job's own token, which reads only the calling repository. Pass it by name; secrets inherit cannot supply it, since a repository or organization secret's name cannot hold a hyphen.
+        required: false
 
 permissions:
   contents: read
@@ -638,9 +663,41 @@ jobs:
     steps:
       # Depth 2: on a pull request the checkout is GitHub's merge commit, and its first parent
       # is the base branch it was merged onto. On a push it is the pushed commit and its parent.
+      # It persists no credentials when the next step fetches submodules, so the job's token is not on disk either.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
+          persist-credentials: ${{ inputs.mutate-submodules == '' }}
+      # Only the submodules the caller names (UAMS-Web/uams-ci-workflows#68): a caller's tests can need a content
+      # submodule while a large asset submodule beside it is not needed. The token reaches git through GIT_CONFIG_*
+      # variables of this step alone, so it is never written to disk, and the caller's scripts, Pest and the mutants
+      # in later steps cannot read it.
+      - name: Check out the named submodules
+        if: inputs.mutate-submodules != ''
+        env:
+          SUBMODULES: ${{ inputs.mutate-submodules }}
+          RECURSIVE: ${{ inputs.mutate-submodules-recursive }}
+          TOKEN: ${{ secrets.mutate-submodules-token || github.token }}
+        run: |
+          read -r -a paths <<< "$SUBMODULES"
+          if [ "${#paths[@]}" -eq 0 ]; then echo "::error::mutate-submodules holds no path"; exit 1; fi
+          registered=$(git config --file .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null | awk '{print $2}' || true)
+          for path in "${paths[@]}"; do
+            if [[ $'\n'"$registered"$'\n' != *$'\n'"$path"$'\n'* ]]; then
+              echo "::error::mutate-submodules names $path, which .gitmodules does not register as a submodule path"
+              exit 1
+            fi
+          done
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')
+          echo "::add-mask::$auth"
+          n=${GIT_CONFIG_COUNT:-0}
+          export "GIT_CONFIG_KEY_$n=http.https://github.com/.extraheader" "GIT_CONFIG_VALUE_$n=AUTHORIZATION: basic $auth"
+          export "GIT_CONFIG_KEY_$((n + 1))=url.https://github.com/.insteadOf" "GIT_CONFIG_VALUE_$((n + 1))=git@github.com:"
+          export GIT_CONFIG_COUNT=$((n + 2))
+          flags=(--init --depth 1)
+          if [ "$RECURSIVE" = "true" ]; then flags+=(--recursive); fi
+          git submodule update "${flags[@]}" -- "${paths[@]}"
+          for path in "${paths[@]}"; do echo "$path checked out at $(git -C "$path" rev-parse HEAD)"; done
       - name: Read the PHP pin
         id: php
         shell: bash
@@ -1335,10 +1392,12 @@ jobs:
     timeout-minutes: 5
     steps:
       # `skipped` and `cancelled` fail as well as `failure`, except that an optional job its input
-      # switched off is `skipped` by design.
+      # switched off is `skipped` by design, and a job named in ADVISORY (`mutate` under `mutate-advisory`)
+      # is reported with a warning whatever its result (UAMS-Web/uams-ci-workflows#68).
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
+          ADVISORY: ${{ inputs.mutate-advisory && 'mutate ' || '' }}
           SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}{12}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.mutate && 'mutate-plan ' || '', (!inputs.mutate && !inputs.mutate-ignore) && 'mutate-ignore ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '', !inputs.guard && 'guard ' || '', !inputs.dev-lint && 'dev-lint ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
@@ -1350,6 +1409,7 @@ jobs:
           while read -r id result; do
             if [ "$result" = "success" ]; then continue; fi
             if [ "$result" = "skipped" ] && [[ " $SWITCHED_OFF" == *" $id "* ]]; then continue; fi
+            if [[ " $ADVISORY" == *" $id "* ]]; then echo "::warning::$id reported $result, which mutate-advisory keeps out of this result"; continue; fi
             echo "::error::$id reported $result"
             failed=1
           done <<< "$results"

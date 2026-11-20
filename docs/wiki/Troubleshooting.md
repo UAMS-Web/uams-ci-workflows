@@ -7,6 +7,7 @@ One entry per error a run prints. Each heading names what the reader sees; the e
 - [Chain result names a job that reported skipped](#chain-result-names-a-job-that-reported-skipped)
 - [PCOV is not loaded](#pcov-is-not-loaded)
 - [mutate-shards is not a whole number](#mutate-shards-is-not-a-whole-number)
+- [mutate-submodules names a path that is not a submodule](#mutate-submodules-names-a-path-that-is-not-a-submodule)
 - [No tracked PHP file to shard](#no-tracked-php-file-to-shard)
 - [A path the shard list or --path cannot carry](#a-path-the-shard-list-or---path-cannot-carry)
 - [HEAD is not a merge commit](#head-is-not-a-merge-commit)
@@ -65,6 +66,17 @@ mutate-shards is '<value>', which is not a whole number of 1 or more
 ```
 
 **Fix:** pass a whole number of 1 or more. See [Running the full mutation pass](Running-the-full-mutation-pass.md).
+
+## mutate-submodules names a path that is not a submodule
+
+```
+mutate-submodules names <path>, which .gitmodules does not register as a submodule path
+mutate-submodules holds no path
+```
+
+**Cause:** a path in `mutate-submodules` is not a `path =` entry of the caller's `.gitmodules`, matched exactly and with case. A submodule nested in another is reached with `mutate-submodules-recursive`, not by its path. The second line means the input holds only spaces.
+
+**Fix:** name each submodule by the path `.gitmodules` gives it, or leave the input empty. See [Running the full mutation pass](Running-the-full-mutation-pass.md).
 
 ## No tracked PHP file to shard
 

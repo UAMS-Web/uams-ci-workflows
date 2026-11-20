@@ -41,6 +41,15 @@ See [Choosing runners for each job](Choosing-runners-for-each-job.md).
 | `mutate-timeout-minutes` | number | `45` | Timeout of the `mutate` job on a pull request or a push. A value above `360`, the longest job GitHub runs, is clamped to `360`. |
 | `mutate-full-timeout-minutes` | number | `180` | Timeout of the `mutate` job on a `schedule` or `workflow_dispatch` run, which mutates everything. |
 | `mutate-shards` | number | `1` | Number of jobs a scheduled or dispatched run splits the full pass across, balanced by file size. Clamped to the number of files and to 100. A value that is not a whole number of 1 or more fails the run. |
+| `mutate-advisory` | boolean | `false` | Run the `mutate` job, every shard of it, without its result gating `Chain result`. The job still reports its own status, and `Chain result` prints a warning for it in place of failing. `mutate-plan` still gates. Added after v0.14.0. |
+| `mutate-submodules` | string | empty | Paths of the caller's submodules the `mutate` job checks out, at depth 1. Empty checks out none. A path `.gitmodules` does not register as a submodule fails the job. A private submodule also needs the `mutate-submodules-token` secret. Added after v0.14.0. |
+| `mutate-submodules-recursive` | boolean | `false` | Check out the submodules nested inside the ones `mutate-submodules` names as well. Added after v0.14.0. |
+
+The `mutate` job also takes one secret, passed by name with `secrets:` beside `with:`. `secrets: inherit` cannot supply it, because a repository or organization secret's name cannot hold a hyphen.
+
+| Secret | Required | Effect |
+| --- | --- | --- |
+| `mutate-submodules-token` | no | A token the `mutate` job fetches the named submodules with, in place of the job's own, for a submodule in a private repository. It needs read access to every submodule named. It is never written to disk, so later steps cannot read it. Without it the fetch uses the job's own token, which reads only the calling repository. Added after v0.14.0. |
 
 See [Running the full mutation pass](Running-the-full-mutation-pass.md).
 

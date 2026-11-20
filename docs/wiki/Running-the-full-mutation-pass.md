@@ -40,11 +40,31 @@ A pull request or push that changes no PHP file under `mutate-paths`, or whose c
 
    The count is clamped to the number of files and to 100. A pull request or a push still runs one job whatever this says. Each shard's check is named `... (ubuntu-latest, shard <n> of <count>)`.
 
+4. **Run mutation without it gating merges.** Where the score is not yet expected to pass, `mutate-advisory: true` runs the job, every shard of it, and keeps its result out of `Chain result`. Each shard's check still reports its own status, and `Chain result` prints `mutate reported failure, which mutate-advisory keeps out of this result` as a warning. A required check on `checks / Chain result` then stays green while mutation is red.
+
+   ```yaml
+   with:
+     mutate-advisory: true
+   ```
+
+5. **Check out the submodules the tests need.** Name their paths in `mutate-submodules`, and the `mutate` job checks out those submodules, at depth 1, and no others. Without them, every mutant their tests cover counts as untested. `mutate-submodules-recursive: true` adds the submodules nested inside the named ones. A private submodule needs a token that reads it, passed as the `mutate-submodules-token` secret; the job's own token reads only the calling repository.
+
+   ```yaml
+   with:
+     mutate-submodules: content users
+   secrets:
+     mutate-submodules-token: ${{ secrets.CONTENT_SUBMODULE_TOKEN }}
+   ```
+
+   `CONTENT_SUBMODULE_TOKEN` stands for whatever the caller names its secret. Pass it by name: `secrets: inherit` cannot supply it. The token reaches git for that one step and is not written to disk, so the caller's scripts, Pest and the mutants cannot read it.
+
+   Steps 4 and 5 need a pin after v0.14.0.
+
 **Note:** `mutate: false` skips the job on every event, and the `mutate-ignore` job with it unless `mutate-ignore: true`. See [Inputs](Inputs.md).
 
 ## Reference
 
-- [Inputs](Inputs.md): `mutate`, `mutate-paths`, `mutate-timeout-minutes`, `mutate-full-timeout-minutes`, `mutate-shards`.
+- [Inputs](Inputs.md): `mutate`, `mutate-paths`, `mutate-timeout-minutes`, `mutate-full-timeout-minutes`, `mutate-shards`, `mutate-advisory`, `mutate-submodules`, `mutate-submodules-recursive` and the `mutate-submodules-token` secret.
 - [Jobs](Jobs.md#pcov): how the job loads PCOV.
 - [Troubleshooting](Troubleshooting.md): the errors the shard planner and the `mutate` job print.
 
