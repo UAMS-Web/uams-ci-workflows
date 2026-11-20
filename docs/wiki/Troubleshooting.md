@@ -7,6 +7,7 @@ One entry per error a run prints. Each heading names what the reader sees; the e
 - [Chain result names a job that reported skipped](#chain-result-names-a-job-that-reported-skipped)
 - [PCOV is not loaded](#pcov-is-not-loaded)
 - [mutate-shards is not a whole number](#mutate-shards-is-not-a-whole-number)
+- [mutate-submodules is not false, true or recursive](#mutate-submodules-is-not-false-true-or-recursive)
 - [No tracked PHP file to shard](#no-tracked-php-file-to-shard)
 - [A path the shard list or --path cannot carry](#a-path-the-shard-list-or---path-cannot-carry)
 - [HEAD is not a merge commit](#head-is-not-a-merge-commit)
@@ -65,6 +66,16 @@ mutate-shards is '<value>', which is not a whole number of 1 or more
 ```
 
 **Fix:** pass a whole number of 1 or more. See [Running the full mutation pass](Running-the-full-mutation-pass.md).
+
+## mutate-submodules is not false, true or recursive
+
+```
+mutate-submodules is '<value>', which is not false, true or recursive
+```
+
+**Cause:** `actions/checkout` reads any other value as `false`, so the job refuses it before the checkout rather than running without the submodules.
+
+**Fix:** pass `true`, `recursive` or `false`, in lower case. See [Running the full mutation pass](Running-the-full-mutation-pass.md).
 
 ## No tracked PHP file to shard
 

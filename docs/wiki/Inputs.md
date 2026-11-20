@@ -41,6 +41,14 @@ See [Choosing runners for each job](Choosing-runners-for-each-job.md).
 | `mutate-timeout-minutes` | number | `45` | Timeout of the `mutate` job on a pull request or a push. A value above `360`, the longest job GitHub runs, is clamped to `360`. |
 | `mutate-full-timeout-minutes` | number | `180` | Timeout of the `mutate` job on a `schedule` or `workflow_dispatch` run, which mutates everything. |
 | `mutate-shards` | number | `1` | Number of jobs a scheduled or dispatched run splits the full pass across, balanced by file size. Clamped to the number of files and to 100. A value that is not a whole number of 1 or more fails the run. |
+| `mutate-advisory` | boolean | `false` | Run the `mutate` job, every shard of it, without its result gating `Chain result`. The job still reports its own status, and `Chain result` prints a warning for it in place of failing. `mutate-plan` still gates. Added after v0.14.0. |
+| `mutate-submodules` | string | `false` | Check out the caller's submodules in the `mutate` job: `true` for the top-level ones, `recursive` for nested ones as well. Any other value fails the job. A private submodule also needs the `mutate-submodules-token` secret. Added after v0.14.0. |
+
+The `mutate` job also takes one secret, passed with `secrets:` beside `with:`:
+
+| Secret | Required | Effect |
+| --- | --- | --- |
+| `mutate-submodules-token` | no | A token the `mutate` checkout uses in place of the job's own, for a private submodule. It needs read access to the calling repository and to every submodule checked out. Without it the checkout uses the job's own token, which reads only the calling repository. Added after v0.14.0. |
 
 See [Running the full mutation pass](Running-the-full-mutation-pass.md).
 

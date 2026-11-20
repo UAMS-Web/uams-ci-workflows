@@ -81,6 +81,14 @@ name: CI chain
 # The full pass is what catches drift from a dependency or tooling change, so a caller adds a `schedule:` trigger to its
 # own `ci.yml` (the caller template shows one). Any other event, and a pushed commit with no parent, mutates everything.
 #
+# Two inputs serve a caller that turns mutation on before its score can gate merges (UAMS-Web/uams-ci-workflows#68).
+# `mutate-advisory: true` runs the `mutate` job, every shard of it, and keeps its result out of the `result` job:
+# the job still reports its own status, and `result` prints a warning for it in place of failing. The `mutate-plan`
+# job still gates, because it fails only on a `mutate-shards` value that is not a count. `mutate-submodules`
+# (`true` or `recursive`; default `false`) checks out the caller's submodules in the `mutate` job, with the
+# `mutate-submodules-token` secret the caller passes when a submodule is private, since the job's own token reads only
+# the calling repository.
+#
 # The `pest` job is on unless the caller passes `pest: false`. A repository whose suite needs what the called
 # chain cannot give it (private submodules, a secret, a sharded run with its own reports) keeps its own Pest
 # jobs as plain jobs beside the call and lists them in the `needs:` of its `CI` job. `pest: false` skips the job
@@ -143,6 +151,14 @@ on:
         description: Space-separated paths the mutate job selects changed PHP files from, the paths `composer mutate` passes to --path.
         type: string
         default: src
+      mutate-advisory:
+        description: Run the mutate job, every shard of it, without its result gating the result job (UAMS-Web/uams-ci-workflows#68). The job still reports its own status, and the result job prints a warning for a mutate result other than success in place of failing. The default false keeps a failing mutate job failing the result job.
+        type: boolean
+        default: false
+      mutate-submodules:
+        description: Check out the caller's submodules in the mutate job (UAMS-Web/uams-ci-workflows#68), passed to actions/checkout as its submodules input. true checks out the top-level submodules, recursive checks out nested ones as well, and the default false checks out none. Any other value fails the job. A private submodule also needs the mutate-submodules-token secret.
+        type: string
+        default: 'false'
       encoding-guard:
         description: Run the encoding-guard job, which runs encoding-guard-command.
         type: boolean
@@ -231,6 +247,10 @@ on:
         description: Paths the dev-lint job skips, space-separated and relative to the repository root, with no spaces inside a path. vendor and node_modules are always skipped.
         type: string
         default: ''
+    secrets:
+      mutate-submodules-token:
+        description: A token the mutate job's checkout uses in place of the job's own, for a caller whose submodules include a private repository (UAMS-Web/uams-ci-workflows#68). It needs read access to the calling repository and to every submodule mutate-submodules checks out. Without it the checkout uses the job's own token, which reads only the calling repository.
+        required: false
 
 permissions:
   contents: read
@@ -636,11 +656,24 @@ jobs:
       run:
         shell: bash
     steps:
+      # actions/checkout reads any value but `true` and `recursive` as false, so a misspelled value would check out
+      # no submodules and every mutant their tests cover would count as untested. Refuse it before the checkout.
+      - name: Check the submodule input
+        env:
+          SUBMODULES: ${{ inputs.mutate-submodules }}
+        run: |
+          case "$SUBMODULES" in
+            false|true|recursive) echo "mutate-submodules is $SUBMODULES." ;;
+            *) echo "::error::mutate-submodules is '$SUBMODULES', which is not false, true or recursive"; exit 1 ;;
+          esac
       # Depth 2: on a pull request the checkout is GitHub's merge commit, and its first parent
       # is the base branch it was merged onto. On a push it is the pushed commit and its parent.
+      # The token is the caller's mutate-submodules-token where it passes one, for a private submodule.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
+          submodules: ${{ inputs.mutate-submodules }}
+          token: ${{ secrets.mutate-submodules-token || github.token }}
       - name: Read the PHP pin
         id: php
         shell: bash
@@ -1335,10 +1368,12 @@ jobs:
     timeout-minutes: 5
     steps:
       # `skipped` and `cancelled` fail as well as `failure`, except that an optional job its input
-      # switched off is `skipped` by design.
+      # switched off is `skipped` by design, and a job named in ADVISORY (`mutate` under `mutate-advisory`)
+      # is reported with a warning whatever its result (UAMS-Web/uams-ci-workflows#68).
       - name: Every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
+          ADVISORY: ${{ inputs.mutate-advisory && 'mutate ' || '' }}
           SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}{12}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.mutate && 'mutate-plan ' || '', (!inputs.mutate && !inputs.mutate-ignore) && 'mutate-ignore ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '', !inputs.guard && 'guard ' || '', !inputs.dev-lint && 'dev-lint ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
@@ -1350,6 +1385,7 @@ jobs:
           while read -r id result; do
             if [ "$result" = "success" ]; then continue; fi
             if [ "$result" = "skipped" ] && [[ " $SWITCHED_OFF" == *" $id "* ]]; then continue; fi
+            if [[ " $ADVISORY" == *" $id "* ]]; then echo "::warning::$id reported $result, which mutate-advisory keeps out of this result"; continue; fi
             echo "::error::$id reported $result"
             failed=1
           done <<< "$results"
