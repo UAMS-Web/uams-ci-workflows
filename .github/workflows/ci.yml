@@ -84,9 +84,10 @@ name: CI chain
 # Two inputs serve a caller that turns mutation on before its score can gate merges (UAMS-Web/uams-ci-workflows#68).
 # `mutate-advisory: true` runs the `mutate` job, every shard of it, and keeps its result out of the `result` job:
 # the job still reports its own status, and `result` prints a warning for it in place of failing. The `mutate-plan`
-# job still gates, because it fails only on a `mutate-shards` value that is not a count. `mutate-submodules`
-# (`true` or `recursive`; default `false`) checks out the caller's submodules in the `mutate` job, with the
-# `mutate-submodules-token` secret the caller passes when a submodule is private, since the job's own token reads only
+# job still gates: it fails on a setup error (a `mutate-shards` value that is not a count, no tracked PHP file under
+# `mutate-paths`, a path the shard list cannot carry), not on a score. `mutate-submodules` names the caller's
+# submodules the `mutate` job checks out, by path, and `mutate-submodules-recursive` adds the ones nested in them. A
+# private submodule needs the `mutate-submodules-token` secret, passed by name, since the job's own token reads only
 # the calling repository.
 #
 # The `pest` job is on unless the caller passes `pest: false`. A repository whose suite needs what the called
@@ -156,9 +157,13 @@ on:
         type: boolean
         default: false
       mutate-submodules:
-        description: Check out the caller's submodules in the mutate job (UAMS-Web/uams-ci-workflows#68), passed to actions/checkout as its submodules input. true checks out the top-level submodules, recursive checks out nested ones as well, and the default false checks out none. Any other value fails the job. A private submodule also needs the mutate-submodules-token secret.
+        description: Space-separated paths of the caller's submodules the mutate job checks out, at depth 1 (UAMS-Web/uams-ci-workflows#68). The default, empty, checks out none. A path that .gitmodules does not register as a submodule fails the job. A private submodule also needs the mutate-submodules-token secret.
         type: string
-        default: 'false'
+        default: ''
+      mutate-submodules-recursive:
+        description: Check out the submodules nested inside the ones mutate-submodules names as well (UAMS-Web/uams-ci-workflows#68). It does nothing while mutate-submodules is empty.
+        type: boolean
+        default: false
       encoding-guard:
         description: Run the encoding-guard job, which runs encoding-guard-command.
         type: boolean
@@ -249,7 +254,7 @@ on:
         default: ''
     secrets:
       mutate-submodules-token:
-        description: A token the mutate job's checkout uses in place of the job's own, for a caller whose submodules include a private repository (UAMS-Web/uams-ci-workflows#68). It needs read access to the calling repository and to every submodule mutate-submodules checks out. Without it the checkout uses the job's own token, which reads only the calling repository.
+        description: A token the mutate job fetches the submodules mutate-submodules names with, in place of the job's own, for a submodule in a private repository (UAMS-Web/uams-ci-workflows#68). It needs read access to every submodule named. Without it the fetch uses the job's own token, which reads only the calling repository. Pass it by name; secrets inherit cannot supply it, since a repository or organization secret's name cannot hold a hyphen.
         required: false
 
 permissions:
@@ -656,24 +661,43 @@ jobs:
       run:
         shell: bash
     steps:
-      # actions/checkout reads any value but `true` and `recursive` as false, so a misspelled value would check out
-      # no submodules and every mutant their tests cover would count as untested. Refuse it before the checkout.
-      - name: Check the submodule input
-        env:
-          SUBMODULES: ${{ inputs.mutate-submodules }}
-        run: |
-          case "$SUBMODULES" in
-            false|true|recursive) echo "mutate-submodules is $SUBMODULES." ;;
-            *) echo "::error::mutate-submodules is '$SUBMODULES', which is not false, true or recursive"; exit 1 ;;
-          esac
       # Depth 2: on a pull request the checkout is GitHub's merge commit, and its first parent
       # is the base branch it was merged onto. On a push it is the pushed commit and its parent.
-      # The token is the caller's mutate-submodules-token where it passes one, for a private submodule.
+      # It persists no credentials when the next step fetches submodules, so the job's token is not on disk either.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
-          submodules: ${{ inputs.mutate-submodules }}
-          token: ${{ secrets.mutate-submodules-token || github.token }}
+          persist-credentials: ${{ inputs.mutate-submodules == '' }}
+      # Only the submodules the caller names (UAMS-Web/uams-ci-workflows#68): a caller's tests can need a content
+      # submodule while a large asset submodule beside it is not needed. The token reaches git through GIT_CONFIG_*
+      # variables of this step alone, so it is never written to disk, and the caller's scripts, Pest and the mutants
+      # in later steps cannot read it.
+      - name: Check out the named submodules
+        if: inputs.mutate-submodules != ''
+        env:
+          SUBMODULES: ${{ inputs.mutate-submodules }}
+          RECURSIVE: ${{ inputs.mutate-submodules-recursive }}
+          TOKEN: ${{ secrets.mutate-submodules-token || github.token }}
+        run: |
+          read -r -a paths <<< "$SUBMODULES"
+          if [ "${#paths[@]}" -eq 0 ]; then echo "::error::mutate-submodules holds no path"; exit 1; fi
+          registered=$(git config --file .gitmodules --get-regexp '^submodule\..*\.path$' 2>/dev/null | awk '{print $2}' || true)
+          for path in "${paths[@]}"; do
+            if [[ $'\n'"$registered"$'\n' != *$'\n'"$path"$'\n'* ]]; then
+              echo "::error::mutate-submodules names $path, which .gitmodules does not register as a submodule path"
+              exit 1
+            fi
+          done
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')
+          echo "::add-mask::$auth"
+          n=${GIT_CONFIG_COUNT:-0}
+          export "GIT_CONFIG_KEY_$n=http.https://github.com/.extraheader" "GIT_CONFIG_VALUE_$n=AUTHORIZATION: basic $auth"
+          export "GIT_CONFIG_KEY_$((n + 1))=url.https://github.com/.insteadOf" "GIT_CONFIG_VALUE_$((n + 1))=git@github.com:"
+          export GIT_CONFIG_COUNT=$((n + 2))
+          flags=(--init --depth 1)
+          if [ "$RECURSIVE" = "true" ]; then flags+=(--recursive); fi
+          git submodule update "${flags[@]}" -- "${paths[@]}"
+          for path in "${paths[@]}"; do echo "$path checked out at $(git -C "$path" rev-parse HEAD)"; done
       - name: Read the PHP pin
         id: php
         shell: bash

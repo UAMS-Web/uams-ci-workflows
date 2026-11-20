@@ -47,16 +47,16 @@ A pull request or push that changes no PHP file under `mutate-paths`, or whose c
      mutate-advisory: true
    ```
 
-5. **Check out the submodules the tests need.** `mutate-submodules: true` (or `recursive` for nested submodules) checks them out in the `mutate` job. Without them, every mutant their tests cover counts as untested. A private submodule needs a token that reads it, passed as the `mutate-submodules-token` secret; the job's own token reads only the calling repository.
+5. **Check out the submodules the tests need.** Name their paths in `mutate-submodules`, and the `mutate` job checks out those submodules, at depth 1, and no others. Without them, every mutant their tests cover counts as untested. `mutate-submodules-recursive: true` adds the submodules nested inside the named ones. A private submodule needs a token that reads it, passed as the `mutate-submodules-token` secret; the job's own token reads only the calling repository.
 
    ```yaml
    with:
-     mutate-submodules: recursive
+     mutate-submodules: content users
    secrets:
      mutate-submodules-token: ${{ secrets.CONTENT_SUBMODULE_TOKEN }}
    ```
 
-   The token needs read access to the calling repository as well, since the same checkout fetches it. `CONTENT_SUBMODULE_TOKEN` stands for whatever the caller names its secret.
+   `CONTENT_SUBMODULE_TOKEN` stands for whatever the caller names its secret. Pass it by name: `secrets: inherit` cannot supply it. The token reaches git for that one step and is not written to disk, so the caller's scripts, Pest and the mutants cannot read it.
 
    Steps 4 and 5 need a pin after v0.14.0.
 
@@ -64,7 +64,7 @@ A pull request or push that changes no PHP file under `mutate-paths`, or whose c
 
 ## Reference
 
-- [Inputs](Inputs.md): `mutate`, `mutate-paths`, `mutate-timeout-minutes`, `mutate-full-timeout-minutes`, `mutate-shards`, `mutate-advisory`, `mutate-submodules` and the `mutate-submodules-token` secret.
+- [Inputs](Inputs.md): `mutate`, `mutate-paths`, `mutate-timeout-minutes`, `mutate-full-timeout-minutes`, `mutate-shards`, `mutate-advisory`, `mutate-submodules`, `mutate-submodules-recursive` and the `mutate-submodules-token` secret.
 - [Jobs](Jobs.md#pcov): how the job loads PCOV.
 - [Troubleshooting](Troubleshooting.md): the errors the shard planner and the `mutate` job print.
 

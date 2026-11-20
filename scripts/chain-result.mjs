@@ -1,6 +1,6 @@
 // Reads steps out of `.github/workflows/ci.yml` so the tests of UAMS-Web/uams-ci-workflows#68 run the workflow's own
 // text and not a retyped copy: the `result` job's `Every needed job succeeded` step, with the expressions its `env:`
-// block computes from the caller's inputs, and the `mutate` job's `Check the submodule input` step and checkout.
+// block computes from the caller's inputs, and the `mutate` job's checkout and `Check out the named submodules` step.
 //
 // The `env:` expressions are evaluated over a fixed allow-list of tokens: `inputs.<name>`, single-quoted strings,
 // `!`, `&&`, `||`, parentheses, commas and `format()` whose template is placeholders only. `&&` and `||` return an
@@ -54,6 +54,7 @@ function parseStep(body) {
         const key = line.match(/^ {8}([a-z-]+):(?: (.*))?$/)
         if (key) {
             section = key[1]
+            if (section === 'if') step.if = key[2]
             if (section === 'run' && key[2] === '|') {
                 const run = []
                 for (const l of body.slice(i + 1)) {
@@ -70,7 +71,7 @@ function parseStep(body) {
     return step
 }
 
-const ALLOWED = /^(?:inputs\.[A-Za-z0-9_-]+|'[^']*'|format|!|&&|\|\||\(|\)|,|\s+)+$/
+const ALLOWED = /^(?:inputs\.[A-Za-z0-9_-]+|'[^']*'|format|==|!=|!|&&|\|\||\(|\)|,|\s+)+$/
 
 // The value an `env:` entry such as `${{ inputs.x && 'a ' || '' }}` takes for the given inputs, as a string.
 export function evaluate(raw, inputs) {
@@ -89,9 +90,9 @@ export function evaluate(raw, inputs) {
     return String(new Function('inputs', 'format', `return (${js})`)(inputs, format))
 }
 
-// Runs a step's shell under `bash -eo pipefail`, which is how a `shell: bash` step runs, with `env` added.
-export function runStep(script, env) {
-    const r = spawnSync('bash', ['-eo', 'pipefail', '-c', script], { env: { ...process.env, ...env }, encoding: 'utf8' })
+// Runs a step's shell under `bash -eo pipefail`, which is how a `shell: bash` step runs, with `env` added, in `cwd`.
+export function runStep(script, env, cwd = undefined) {
+    const r = spawnSync('bash', ['-eo', 'pipefail', '-c', script], { cwd, env: { ...process.env, ...env }, encoding: 'utf8' })
     if (r.error) throw r.error
     return { status: r.status, stdout: r.stdout, stderr: r.stderr }
 }
