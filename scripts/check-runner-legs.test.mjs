@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { parseWorkflow, parseCallerInputs, compareLegs, expectedRunners } from './check-runner-legs.mjs'
 
+const isTrue = (value) => String(value).toLowerCase() === 'true'
+
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtures = join(here, 'fixtures', 'runner-legs')
 const workflowPath = join(fixtures, 'ci-v0.10.1.yml')
@@ -85,6 +87,75 @@ test('linux-only takes the three-runner jobs to ubuntu-latest, and the old linux
     assert.equal(findingsFor(realNames, inputs).length, 2)
 })
 
+// The workflow this repository publishes, where a caller that passes no leg input runs every job on `ubuntu-latest`
+// only (UAMS-Web/uams-ci-workflows#70). Check run names are built from each job's own name and the runners the
+// classification expects, so each combination of inputs is compared with a run that did exactly what it asked.
+const live = parseWorkflow(readFileSync(join(here, '..', '.github', 'workflows', 'ci.yml'), 'utf8'))
+
+const namesFor = (inputs) => {
+    const all = { ...live.defaults, ...inputs }
+    return Object.values(live.jobs).flatMap((job) => {
+        const want = expectedRunners(job, all)
+        if (want === 'off') return []
+        return want.map((os) => `checks / ${job.name.replace(/\$\{\{\s*matrix\.os\s*\}\}/g, os).replace(/\$\{\{.*?\}\}/g, '')}`)
+    })
+}
+const liveFindings = (names, inputs = {}) => compareLegs(live, inputs, names).findings
+const runnersOf = (id, inputs = {}) => expectedRunners(live.jobs[id], { ...live.defaults, ...inputs })
+
+test('a caller that passes no leg input runs every job on ubuntu-latest only', () => {
+    assert.equal(isTrue(live.defaults['linux-only']), true)
+    for (const id of ['pest', 'mutate-ignore', 'vitest', 'mutation-smoke', 'pint', 'mutate']) {
+        assert.deepEqual(runnersOf(id, { vitest: 'true', 'mutation-smoke': 'true' }), ['ubuntu-latest'], id)
+    }
+    const names = namesFor({ vitest: 'true', 'mutation-smoke': 'true' })
+    assert.ok(names.length > 10, `built ${names.length} names`)
+    assert.ok(names.every((n) => !/\((windows|macos)-latest\)$/.test(n)))
+    assert.deepEqual(liveFindings(names, { vitest: 'true', 'mutation-smoke': 'true' }), [])
+})
+
+test('a Windows or macOS leg a default caller did not ask for fails, and so does a Linux leg that went missing', () => {
+    const inputs = { vitest: 'true', 'mutation-smoke': 'true' }
+    const names = namesFor(inputs)
+    const extra = liveFindings([...names, 'checks / Pest (macos-latest)'], inputs)
+    assert.equal(extra.length, 1)
+    assert.match(extra[0], /job `pest` ran on macos-latest, ubuntu-latest, expected ubuntu-latest \(unexpected macos-latest\)/)
+    const missing = liveFindings(names.filter((n) => n !== 'checks / Pest (ubuntu-latest)'), inputs)
+    assert.equal(missing.length, 1)
+    assert.match(missing[0], /job `pest` ran on no runner, expected ubuntu-latest \(missing ubuntu-latest\)/)
+})
+
+test('linux-only: false gives each job the runners its classification names', () => {
+    const inputs = { 'linux-only': 'false', vitest: 'true', 'mutation-smoke': 'true' }
+    for (const id of ['pest', 'mutate-ignore', 'vitest', 'mutation-smoke']) {
+        assert.deepEqual(runnersOf(id, inputs).slice().sort(), ['macos-latest', 'ubuntu-latest', 'windows-latest'], id)
+    }
+    for (const id of ['pint', 'rector', 'phpstan']) assert.deepEqual(runnersOf(id, inputs), ['ubuntu-latest'], id)
+    assert.deepEqual(runnersOf('mutate', inputs), ['ubuntu-latest'], 'mutate stays on Ubuntu')
+    const names = namesFor(inputs)
+    assert.deepEqual(liveFindings(names, inputs), [])
+    const findings = liveFindings(names.filter((n) => n !== 'checks / Pest (macos-latest)'), inputs)
+    assert.equal(findings.length, 1)
+    assert.match(findings[0], /job `pest` ran on ubuntu-latest, windows-latest, expected macos-latest, ubuntu-latest, windows-latest \(missing macos-latest\)/)
+})
+
+test('a caller that still passes linux-only: true runs exactly as a caller that passes nothing', () => {
+    const base = { vitest: 'true', 'mutation-smoke': 'true' }
+    assert.deepEqual(namesFor({ ...base, 'linux-only': 'true' }), namesFor(base))
+    assert.deepEqual(liveFindings(namesFor(base), { ...base, 'linux-only': 'true' }), [])
+})
+
+test('all-platform-jobs and windows-jobs raise the jobs they name on top of the default', () => {
+    assert.deepEqual(runnersOf('pint', { 'all-platform-jobs': 'pint' }).slice().sort(), ['macos-latest', 'ubuntu-latest', 'windows-latest'])
+    assert.deepEqual(runnersOf('pest', { 'windows-jobs': 'pest' }), ['ubuntu-latest', 'windows-latest'])
+    assert.deepEqual(runnersOf('pest', { 'all-platform-jobs': 'pint' }), ['ubuntu-latest'], 'a job not named stays on Ubuntu')
+    assert.deepEqual(runnersOf('mutate', { 'all-platform-jobs': 'mutate' }), ['ubuntu-latest'])
+    const inputs = { 'all-platform-jobs': 'pint', 'windows-jobs': 'pest' }
+    const names = namesFor(inputs)
+    assert.deepEqual(liveFindings(names, inputs), [])
+    assert.equal(liveFindings(names.filter((n) => n !== 'checks / Pint (windows-latest)'), inputs).length, 1)
+})
+
 test('all-platform-jobs and windows-jobs widen and narrow a job', () => {
     const d = workflow.defaults
     assert.deepEqual(expectedRunners(workflow.jobs.pint, { ...d, 'all-platform-jobs': 'pint' }), ['ubuntu-latest', 'windows-latest', 'macos-latest'])
@@ -122,8 +193,9 @@ test('a gate of two inputs joined by || is off only when both are false', () => 
     const d = live.defaults
     assert.deepEqual(job.gates, ['mutate', 'mutate-ignore'])
     assert.equal(expectedRunners(job, { ...d, mutate: 'false', 'mutate-ignore': 'false' }), 'off')
-    assert.equal(expectedRunners(job, { ...d, mutate: 'false', 'mutate-ignore': 'true' }).length, 3)
-    assert.equal(expectedRunners(job, { ...d, mutate: 'true', 'mutate-ignore': 'false' }).length, 3)
+    assert.equal(expectedRunners(job, { ...d, 'linux-only': 'false', mutate: 'false', 'mutate-ignore': 'true' }).length, 3)
+    assert.equal(expectedRunners(job, { ...d, 'linux-only': 'false', mutate: 'true', 'mutate-ignore': 'false' }).length, 3)
+    assert.equal(expectedRunners(job, { ...d, mutate: 'false', 'mutate-ignore': 'true' }).length, 1, 'the default is one runner')
     assert.deepEqual(expectedRunners(job, { ...d, mutate: 'false', 'mutate-ignore': 'true', 'linux-only': 'true' }), ['ubuntu-latest'])
 })
 
