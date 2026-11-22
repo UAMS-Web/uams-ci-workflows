@@ -252,6 +252,14 @@ on:
         description: Paths the dev-lint job skips, space-separated and relative to the repository root, with no spaces inside a path. vendor and node_modules are always skipped.
         type: string
         default: ''
+      changed-tests:
+        description: Run the changed-tests job, which runs a pull request's changed test files against the base branch's source and reports each file (UAMS-Web/uams-claude-skills#876, decided on #865). It reports and never gates, so only a comparison that could not run fails it. Needs the `pest-testing` skill's changed-tests-against-base.mjs.
+        type: boolean
+        default: false
+      changed-tests-paths:
+        description: The test directories the changed-tests job compares, space-separated and relative to the repository root, with no spaces inside a path. Each becomes a `--tests` argument of the script. Name only directories whose tests run without a host application, such as `tests/Unit tests/Integration`.
+        type: string
+        default: tests
     secrets:
       mutate-submodules-token:
         description: A token the mutate job fetches the submodules mutate-submodules names with, in place of the job's own, for a submodule in a private repository (UAMS-Web/uams-ci-workflows#68). It needs read access to every submodule named. Without it the fetch uses the job's own token, which reads only the calling repository. Pass it by name; secrets inherit cannot supply it, since a repository or organization secret's name cannot hold a hyphen.
@@ -1381,11 +1389,73 @@ jobs:
           done < php-files.list
           if [ "$failed" -ne 0 ]; then echo "::error::$failed PHP file(s) failed php -l"; exit 1; fi
 
+  changed-tests:
+    name: Changed tests against base (${{ matrix.os }})
+    if: inputs.changed-tests
+    needs: [composer-validate]
+    # Legs: Linux only. Decided on UAMS-Web/uams-claude-skills#876 from what the job reads, not from a seeded fault: the script diffs with git and runs the changed Pest files once, and its report is the same on any platform. A caller that wants more names it in `all-platform-jobs`.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(contains(format(' {0} ', inputs.all-platform-jobs), ' changed-tests ') && '["ubuntu-latest","windows-latest","macos-latest"]' || contains(format(' {0} ', inputs.windows-jobs), ' changed-tests ') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # `fetch-depth: 0` is what makes the base branch present; without it the script fails and names that cause.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Read the PHP pin
+        id: php
+        shell: bash
+        run: |
+          pin=""
+          if [ -f composer.json ]; then pin=$(jq -r '.config.platform.php // empty' composer.json); fi
+          if [ -z "$pin" ]; then
+            echo "pinned=none" >> "$GITHUB_OUTPUT"
+            echo "minor=8.4" >> "$GITHUB_OUTPUT"
+            echo "No config.platform.php in composer.json; installing the default PHP 8.4."
+          else
+            # The whole value must be a version: a prefix match let `8.4.x` through, and a newline in the pin wrote extra lines to GITHUB_OUTPUT.
+            if ! [[ "$pin" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)*$ ]]; then echo "::error::config.platform.php is '$pin', which is not a version of the form major.minor or major.minor.patch"; exit 1; fi
+            minor=$(printf '%s' "$pin" | grep -oE '^[0-9]+\.[0-9]+')
+            echo "pinned=$pin" >> "$GITHUB_OUTPUT"
+            echo "minor=$minor" >> "$GITHUB_OUTPUT"
+            echo "config.platform.php is $pin; installing PHP $minor."
+          fi
+      - uses: ./.github/actions/setup
+        with:
+          php-version: ${{ steps.php.outputs.minor }}
+      - name: Report pinned and installed PHP
+        shell: bash
+        env:
+          PINNED: ${{ steps.php.outputs.pinned }}
+        run: |
+          installed=$(php -r 'echo PHP_VERSION;')
+          echo "PHP pinned: $PINNED, installed: $installed"
+          case "$PINNED" in none|"$installed") ;; *) echo "::warning::config.platform.php pins $PINNED but the runner installed $installed; setup-php installs the newest patch of a minor" ;; esac
+
+      # The base branch reaches the script through the environment (GITHUB_BASE_REF), and the paths through TEST_PATHS,
+      # so no expression sits in `run:`. An empty path list is a configuration error and fails, never a silent pass.
+      - name: Changed tests against base
+        env:
+          TEST_PATHS: ${{ inputs.changed-tests-paths }}
+        run: |
+          # Globbing is off so a path is never expanded against the checkout.
+          set -f
+          args=()
+          for p in $TEST_PATHS; do args+=(--tests "$p"); done
+          if [ ${#args[@]} -eq 0 ]; then echo "::error::changed-tests is on but changed-tests-paths is empty"; exit 1; fi
+          node .claude/skills/pest-testing/scripts/changed-tests-against-base.mjs "${args[@]}"
+
   # The one job that reads every other job's result. Keep `needs:` listing every other job in the
   # file; scripts/check-templates.mjs in UAMS-Web/uams-claude-skills checks it.
   result:
     name: Chain result
-    needs: [composer-validate, synced-files, no-emoji, aggregate-needs, pint, rector, phpstan, mutate-ignore, mutate-plan, mutate, pest, encoding-guard, vitest, vite-build, mutation-smoke, floor-lint, download-archive, phpcs, guard, dev-lint]
+    needs: [composer-validate, synced-files, no-emoji, aggregate-needs, pint, rector, phpstan, mutate-ignore, mutate-plan, mutate, pest, encoding-guard, vitest, vite-build, mutation-smoke, floor-lint, download-archive, phpcs, guard, dev-lint, changed-tests]
     if: always()
     # Legs: Linux only. It reads job results with jq.
     runs-on: ubuntu-latest
@@ -1398,7 +1468,7 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
           ADVISORY: ${{ inputs.mutate-advisory && 'mutate ' || '' }}
-          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}{12}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.mutate && 'mutate-plan ' || '', (!inputs.mutate && !inputs.mutate-ignore) && 'mutate-ignore ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '', !inputs.guard && 'guard ' || '', !inputs.dev-lint && 'dev-lint ' || '') }}
+          SWITCHED_OFF: ${{ format('{0}{1}{2}{3}{4}{5}{6}{7}{8}{9}{10}{11}{12}{13}', !inputs.pest && 'pest ' || '', !inputs.mutate && 'mutate ' || '', !inputs.mutate && 'mutate-plan ' || '', (!inputs.mutate && !inputs.mutate-ignore) && 'mutate-ignore ' || '', !inputs.encoding-guard && 'encoding-guard ' || '', !inputs.vitest && 'vitest ' || '', !inputs.vite-build && 'vite-build ' || '', !inputs.mutation-smoke && 'mutation-smoke ' || '', !inputs.floor-lint && 'floor-lint ' || '', !inputs.download-archive && 'download-archive ' || '', !inputs.phpcs && 'phpcs ' || '', !inputs.guard && 'guard ' || '', !inputs.dev-lint && 'dev-lint ' || '', !inputs.changed-tests && 'changed-tests ' || '') }}
         run: |
           results=$(echo "$NEEDS" | jq -r 'to_entries[] | "\(.key) \(.value.result)"')
           echo "Needed job results:"
