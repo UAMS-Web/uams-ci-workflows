@@ -1,6 +1,6 @@
-Written against v0.14.0.
+Written against v0.17.0.
 
-The jobs of `ci.yml`, the runners each is classified for, and the PHP and PCOV setup they share. Each job's `# Legs:` line in [`.github/workflows/ci.yml`](https://github.com/UAMS-Web/uams-ci-workflows/blob/main/.github/workflows/ci.yml) states its classification and the evidence for it; the code-quality skill's "Which jobs run on which operating system" section in `UAMS-Web/uams-claude-skills` holds that evidence. A job with no recorded evidence runs on all three runners.
+The jobs of `ci.yml`, the runners each is classified for, and the PHP and PCOV setup they share. Each job's `# Legs:` line in [`.github/workflows/ci.yml`](https://github.com/UAMS-Web/uams-ci-workflows/blob/main/.github/workflows/ci.yml) states its classification and the evidence for it; the code-quality skill's "Which jobs run on which operating system" section in `UAMS-Web/uams-claude-skills` holds that evidence. A job with no recorded evidence is classified for all three. The classification says which runners a job can run on, not which it does: a caller that passes no leg input gets `ubuntu-latest` only for every job, and `linux-only: false` runs each job on the runners named here (see [Choosing runners for each job](Choosing-runners-for-each-job.md)).
 
 ## The chain
 

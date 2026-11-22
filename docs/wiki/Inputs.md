@@ -1,13 +1,12 @@
-Written against v0.14.0.
+Written against v0.17.0.
 
-The inputs of `ci.yml`, which a caller passes with `with:`. Every input has a default, so a caller that passes none runs the chain unchanged. Job ids in a list are separated by spaces. The source of truth is the `on.workflow_call.inputs` block of [`.github/workflows/ci.yml`](https://github.com/UAMS-Web/uams-ci-workflows/blob/main/.github/workflows/ci.yml) at the tag a caller pins.
+The inputs of `ci.yml`, which a caller passes with `with:`. Every input has a default, so a caller that passes none runs the chain with those defaults. Job ids in a list are separated by spaces. The source of truth is the `on.workflow_call.inputs` block of [`.github/workflows/ci.yml`](https://github.com/UAMS-Web/uams-ci-workflows/blob/main/.github/workflows/ci.yml) at the tag a caller pins.
 
 ```yaml
 jobs:
   checks:
     uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@<tag>
     with:
-      linux-only: true
       mutate-paths: src
 ```
 
@@ -15,8 +14,8 @@ jobs:
 
 | Input | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `linux-only` | boolean | `false` | Run every job on `ubuntu-latest` only, except the jobs named in `all-platform-jobs`. |
-| `all-platform-jobs` | string | empty | Job ids kept on all three runners whatever `linux-only` says. Naming `mutate` changes nothing. |
+| `linux-only` | boolean | `true` | Run every job on `ubuntu-latest` only, except the jobs named in `all-platform-jobs` or `windows-jobs`. Pass `false` to run each job on the runners its classification names. |
+| `all-platform-jobs` | string | empty | Job ids run on all three runners whatever `linux-only` says. Naming `mutate` changes nothing. |
 | `windows-jobs` | string | empty | Job ids run on `ubuntu-latest` and `windows-latest` only, with no `macos-latest` leg, whatever `linux-only` says. A job also named in `all-platform-jobs` keeps all three. `mutate` is not affected. |
 
 See [Choosing runners for each job](Choosing-runners-for-each-job.md).

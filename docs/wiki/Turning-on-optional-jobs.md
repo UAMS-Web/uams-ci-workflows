@@ -1,4 +1,4 @@
-Written against v0.14.0.
+Written against v0.17.0.
 
 Several jobs are off until the caller passes `true` for the input of the same name. Most run a command the caller names in a `<job>-command` input. A job switched off reports `skipped`, and `Chain result` accepts that skip; a job switched on and skipped for any other reason fails the chain.
 
@@ -31,7 +31,6 @@ Several jobs are off until the caller passes `true` for the input of the same na
 
    ```yaml
    with:
-     linux-only: true
      mutate: false
      mutate-ignore-paths: includes
      floor-lint: true
