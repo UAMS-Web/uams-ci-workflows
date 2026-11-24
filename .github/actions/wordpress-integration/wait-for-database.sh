@@ -5,6 +5,9 @@ set -euo pipefail
 
 php -r 'exit(extension_loaded("mysqli") ? 0 : 1);' || { echo "::error::The installed PHP has no mysqli extension, which WordPress connects with; add it to the setup action's extensions"; exit 1; }
 
+# A connection that names no database succeeds whatever the server holds.
+[ -n "${WP_TESTS_DB_NAME:-}" ] || { echo "::error::WP_TESTS_DB_NAME is empty, so no database can be checked"; exit 1; }
+
 attempts=${WAIT_ATTEMPTS:-60}
 last=""
 for ((i = 1; i <= attempts; i++)); do

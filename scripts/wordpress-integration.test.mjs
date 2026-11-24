@@ -231,6 +231,13 @@ test('a container that does not start fails with the image named', () => {
     assert.match(r.out, /::error::The database container did not start from the image 'mysql:8\.0'/)
 })
 
+test('an empty database name fails before any connection', () => {
+    const r = wait({ WP_TESTS_DB_NAME: '' })
+    assert.equal(r.status, 1)
+    assert.match(r.out, /WP_TESTS_DB_NAME is empty/)
+    assert.equal(r.calls.length, 1)
+})
+
 test('a PHP without mysqli fails before any connection', () => {
     const r = wait({ NO_MYSQLI: '1' })
     assert.equal(r.status, 1)

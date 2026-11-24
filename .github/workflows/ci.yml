@@ -880,7 +880,8 @@ jobs:
 
       # Reads the log, not the exit status: fails on zero mutants, and on any untested,
       # uncovered, pending or timed-out mutant. Runs even when the step above failed, so the
-      # log's own account of the failure is printed; skipped only when nothing was selected.
+      # log's own account of the failure is printed; it reads the first summary in the log only, so a `composer mutate`
+      # of several Pest commands is judged on the first (UAMS-Web/uams-claude-skills#914); skipped only when nothing was selected.
       # One exception: changed files that exist, mutated with PCOV loaded, that produce zero
       # mutants hold no code a mutator changes (an interface, say), which is a pass. Zero
       # mutants on a full run, or with no PCOV, still fails.
