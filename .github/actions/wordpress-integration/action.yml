@@ -1,0 +1,94 @@
+name: WordPress integration environment
+description: Start a database, download WordPress, install the Integration suite's own Composer setup and export the variables the suite reads. Linux only. Run it after actions/checkout and after PHP and Composer are set up.
+
+# cspell:ignore mysqli abspath
+# The `mutate` job of `.github/workflows/ci.yml` runs this when its caller passes `mutate-wordpress: true`
+# (UAMS-Web/uams-ci-workflows#78), and a caller's own integration job can run it as
+# `UAMS-Web/uams-ci-workflows/.github/actions/wordpress-integration@<tag>`.
+#
+# It is a composite action and not a reusable workflow because the suite has to run in the job that holds the
+# environment: a called workflow's database, WordPress tree and installed packages end with its own jobs. A composite
+# action cannot declare `services:`, so the database is a container this action starts, on the ports of the runner.
+#
+# Every step is a `run:` step: an action used inside this one would be downloaded by each job that names this action,
+# whether or not the job runs it.
+#
+# Single site and multisite use the same action. `multisite` sets `WP_MULTISITE`, the switch `wp-phpunit` reads, and
+# `env` sets any other variable a suite uses to choose between them.
+
+inputs:
+  integration-path:
+    description: The directory of the Integration suite's own Composer setup, relative to the workspace.
+    default: tests/Integration
+  wordpress-version:
+    description: The WordPress version to download. Empty reads the version of `wp-phpunit/wp-phpunit` in the `composer.lock` under `integration-path`, since that package is released with WordPress.
+    default: ''
+  multisite:
+    description: "`true` exports `WP_MULTISITE=1` and `false` exports `WP_MULTISITE=0`. Empty exports neither and leaves the choice to the suite."
+    default: ''
+  env:
+    description: More variables the suite reads, one `NAME=value` a line. They are exported last, so one can replace a value this action exports.
+    default: ''
+  database-image:
+    description: The image of the database container, a `mysql` or `mariadb` tag.
+    default: mysql:8.0
+  database-name:
+    description: The database the container creates, exported as `WP_TESTS_DB_NAME`. The suite's installer drops every table in it.
+    default: wordpress_tests
+  database-user:
+    description: The user the suite connects as, exported as `WP_TESTS_DB_USER`. A user other than `root` is created with privileges on `database-name` alone.
+    default: root
+  database-password:
+    description: That user's password, exported as `WP_TESTS_DB_PASSWORD`. It guards a container that is thrown away with the runner, so it is not a secret. Empty is allowed for `root` only.
+    default: ''
+  database-port:
+    description: The port of 127.0.0.1 the container listens on, exported in `WP_TESTS_DB_HOST`.
+    default: '3306'
+
+runs:
+  using: composite
+  steps:
+    - name: Start the database
+      shell: bash
+      env:
+        DB_IMAGE: ${{ inputs.database-image }}
+        DB_NAME: ${{ inputs.database-name }}
+        DB_USER: ${{ inputs.database-user }}
+        DB_PASSWORD: ${{ inputs.database-password }}
+        DB_PORT: ${{ inputs.database-port }}
+      run: bash "$GITHUB_ACTION_PATH/start-database.sh"
+
+    - name: Download WordPress
+      shell: bash
+      env:
+        INTEGRATION_PATH: ${{ inputs.integration-path }}
+        WORDPRESS_VERSION: ${{ inputs.wordpress-version }}
+      run: bash "$GITHUB_ACTION_PATH/download-wordpress.sh"
+
+    - name: Install the Integration suite's Composer dependencies
+      shell: bash
+      env:
+        INTEGRATION_PATH: ${{ inputs.integration-path }}
+      run: composer install --working-dir="$INTEGRATION_PATH" --no-interaction --no-progress --prefer-dist
+
+    - name: Export the variables the suite reads
+      shell: bash
+      env:
+        DB_NAME: ${{ inputs.database-name }}
+        DB_USER: ${{ inputs.database-user }}
+        DB_PASSWORD: ${{ inputs.database-password }}
+        DB_PORT: ${{ inputs.database-port }}
+        MULTISITE: ${{ inputs.multisite }}
+        MORE: ${{ inputs.env }}
+      run: bash "$GITHUB_ACTION_PATH/export-environment.sh"
+
+    # The first connection is made after every slow step, so the container has had that time to initialize. It is made
+    # with the extension and the values the suite uses, so a server that answers but refuses them is not read as ready.
+    - name: Wait for the database
+      shell: bash
+      env:
+        DB_PORT: ${{ inputs.database-port }}
+        DB_NAME: ${{ inputs.database-name }}
+        DB_USER: ${{ inputs.database-user }}
+        DB_PASSWORD: ${{ inputs.database-password }}
+      run: bash "$GITHUB_ACTION_PATH/wait-for-database.sh"

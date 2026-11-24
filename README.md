@@ -3,6 +3,7 @@ Shared reusable GitHub Actions workflows for UAMS-Web repositories
 
 - `.github/workflows/ci.yml`: the CI chain (Composer validate, synced files, no-emoji, Pint, Rector, PHPStan, mutation testing, Pest and optional jobs) a repository calls instead of keeping its own copy.
 - `.github/workflows/runner-legs.yml`: checks that a caller's run reached the runners each job is classified for.
+- `.github/actions/wordpress-integration`: the composite action that stands up a database, WordPress and an Integration suite's Composer setup, which the CI chain's `mutate` job uses on request.
 - `.github/workflows/pr-body-checks.yml`: the `Attribution footer` and `Closing keywords` checks on a pull-request body.
 
 The documentation (a walkthrough, task guides, every input and job, and troubleshooting) is in the [wiki](https://github.com/UAMS-Web/uams-ci-workflows/wiki).

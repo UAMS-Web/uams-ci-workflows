@@ -8,6 +8,7 @@ One entry per error a run prints. Each heading names what the reader sees; the e
 - [PCOV is not loaded](#pcov-is-not-loaded)
 - [mutate-shards is not a whole number](#mutate-shards-is-not-a-whole-number)
 - [mutate-submodules names a path that is not a submodule](#mutate-submodules-names-a-path-that-is-not-a-submodule)
+- [The WordPress integration environment did not start](#the-wordpress-integration-environment-did-not-start)
 - [No tracked PHP file to shard](#no-tracked-php-file-to-shard)
 - [A path the shard list or --path cannot carry](#a-path-the-shard-list-or---path-cannot-carry)
 - [HEAD is not a merge commit](#head-is-not-a-merge-commit)
@@ -77,6 +78,20 @@ mutate-submodules holds no path
 **Cause:** a path in `mutate-submodules` is not a `path =` entry of the caller's `.gitmodules`, matched exactly and with case. A submodule nested in another is reached with `mutate-submodules-recursive`, not by its path. The second line means the input holds only spaces.
 
 **Fix:** name each submodule by the path `.gitmodules` gives it, or leave the input empty. See [Running the full mutation pass](Running-the-full-mutation-pass.md).
+
+## The WordPress integration environment did not start
+
+```
+There is no tests/Integration/composer.lock to read the WordPress version from; commit it, or pass the version
+tests/Integration/composer.lock does not lock wp-phpunit/wp-phpunit, so the WordPress version cannot be read from it; pass the version
+The installed PHP has no mysqli extension, which WordPress connects with; add it to the setup action's extensions
+The database did not accept a connection after <n> attempts; the last answer was: <answer>
+env holds a line that is not NAME=value: <line>
+```
+
+**Cause:** the `wordpress-integration` action, which the `mutate` job runs when `mutate-wordpress` is `true`, could not stand up what the suite needs. The fourth line follows the container's last log lines; a wrong `mutate-wordpress-database-image` shows there.
+
+**Fix:** the first two lines are answered with `mutate-wordpress-version`, the third in the caller's `.github/actions/setup/action.yml`, the last in `mutate-wordpress-env`. See [Jobs](Jobs.md#wordpress-integration-environment).
 
 ## No tracked PHP file to shard
 

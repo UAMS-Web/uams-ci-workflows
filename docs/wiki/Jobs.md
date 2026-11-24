@@ -48,6 +48,38 @@ The jobs that install PHP through the caller's `./.github/actions/setup` pass th
 
 The `mutate` and `mutation-smoke` jobs load PCOV themselves, with a `shivammathur/setup-php` step after the caller's setup action, and fail when `pcov` is not loaded. The caller's setup action therefore needs no `coverage` input; one that declares only `php-version` is enough.
 
+## WordPress integration environment
+
+The composite action [`.github/actions/wordpress-integration`](https://github.com/UAMS-Web/uams-ci-workflows/tree/main/.github/actions/wordpress-integration) stands up what a WordPress Integration suite needs, on Linux, in the job that uses it:
+
+- a `mysql` or `mariadb` container on `127.0.0.1` (a composite action cannot declare `services:`);
+- WordPress, at the version of `wp-phpunit/wp-phpunit` in the suite's `composer.lock` unless one is named, in `$RUNNER_TEMP/wordpress`;
+- the Composer setup under `tests/Integration`;
+- `WP_TESTS_ABSPATH`, `WP_TESTS_DB_HOST`, `WP_TESTS_DB_NAME`, `WP_TESTS_DB_USER` and `WP_TESTS_DB_PASSWORD`, with `WP_MULTISITE` when the install shape is named and any variable the caller adds.
+
+The `mutate` job uses it when `mutate-wordpress` is `true`. A caller's own integration job can use it too, after its checkout and its PHP and Composer setup, pinned to the tag the call is pinned to:
+
+```yaml
+      - uses: UAMS-Web/uams-ci-workflows/.github/actions/wordpress-integration@<tag>
+        with:
+          multisite: ${{ matrix.mode == 'multisite' }}
+      - run: composer test:integration
+```
+
+| Input | Default | Effect |
+| --- | --- | --- |
+| `integration-path` | `tests/Integration` | The directory of the suite's own Composer setup. |
+| `wordpress-version` | empty | The WordPress version; empty reads it from the lock. |
+| `multisite` | empty | `true` exports `WP_MULTISITE=1`, `false` exports `WP_MULTISITE=0`, empty exports neither. |
+| `env` | empty | More variables, one `NAME=value` a line, exported last. |
+| `database-image` | `mysql:8.0` | The image of the database container. |
+| `database-name` | `wordpress_tests` | The database, which the suite's installer empties. |
+| `database-user` | `root` | The user the suite connects as. Another user is created with privileges on that database alone. |
+| `database-password` | empty | That user's password. Empty is allowed for `root` only. It is not a secret: the container ends with the runner. |
+| `database-port` | `3306` | The port on `127.0.0.1`. |
+
+The action needs a pin after v0.17.0. It sets up no licensed plugin and no plugin outside the suite's Composer setup; a caller that needs one adds its own step.
+
 ## What a caller carries
 
 Every job checks out the caller's repository, so the caller supplies the setup action, the synced `.claude/skills/` scripts the jobs run, the Composer scripts `test:pint`, `test:refactor`, `stan`, `test` and `mutate`, and `tests/skip-baseline.json` for the `pest` job. See [Calling the CI chain](Calling-the-CI-chain.md#1-carry-what-the-jobs-check-out).

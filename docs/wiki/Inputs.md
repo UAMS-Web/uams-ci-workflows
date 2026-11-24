@@ -43,6 +43,11 @@ See [Choosing runners for each job](Choosing-runners-for-each-job.md).
 | `mutate-advisory` | boolean | `false` | Run the `mutate` job, every shard of it, without its result gating `Chain result`. The job still reports its own status, and `Chain result` prints a warning for it in place of failing. `mutate-plan` still gates. Added after v0.14.0. |
 | `mutate-submodules` | string | empty | Paths of the caller's submodules the `mutate` job checks out, at depth 1. Empty checks out none. A path `.gitmodules` does not register as a submodule fails the job. A private submodule also needs the `mutate-submodules-token` secret. Added after v0.14.0. |
 | `mutate-submodules-recursive` | boolean | `false` | Check out the submodules nested inside the ones `mutate-submodules` names as well. Added after v0.14.0. |
+| `mutate-wordpress` | boolean | `false` | Stand up a WordPress integration environment in the `mutate` job before `composer mutate`: a database, a WordPress download, the Composer setup under `tests/Integration` and the `WP_TESTS_*` variables. Added after v0.17.0. |
+| `mutate-wordpress-version` | string | empty | The WordPress version it downloads. Empty reads the version of `wp-phpunit/wp-phpunit` in `tests/Integration/composer.lock`. Added after v0.17.0. |
+| `mutate-wordpress-multisite` | string | empty | `true` exports `WP_MULTISITE=1` and `false` exports `WP_MULTISITE=0`. Empty exports neither and leaves the choice to the suite. Added after v0.17.0. |
+| `mutate-wordpress-database-image` | string | `mysql:8.0` | The image of the database container, a `mysql` or `mariadb` tag. Added after v0.17.0. |
+| `mutate-wordpress-env` | string | empty | More variables to export for the suite, one `NAME=value` a line. Added after v0.17.0. |
 
 The `mutate` job also takes one secret, passed by name with `secrets:` beside `with:`. `secrets: inherit` cannot supply it, because a repository or organization secret's name cannot hold a hyphen.
 

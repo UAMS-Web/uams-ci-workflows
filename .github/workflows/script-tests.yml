@@ -4,11 +4,17 @@ name: Script tests
 # `check-runner-legs.mjs` (UAMS-Web/uams-ci-workflows#39). They read fixtures and spawn no network call,
 # so one Ubuntu leg is enough. A change to `ci.yml` runs them too, because one test reads that file and
 # fails when a job in it carries no `# Legs:` classification.
+#
+# The `wordpress-integration` job runs the composite action of that name against the Integration suite of
+# UAMS-Web/wordpress-plugin-template, a caller that carries one, on single site and on multisite
+# (UAMS-Web/uams-ci-workflows#78). The commit is pinned so a change there cannot fail a pull request here.
+# Each leg reads which install shape the suite reported, so a variable that stopped reaching it fails the leg.
 
 on:
   pull_request:
     paths:
       - 'scripts/**'
+      - '.github/actions/wordpress-integration/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/runner-legs.yml'
       - '.github/workflows/script-tests.yml'
@@ -27,3 +33,49 @@ jobs:
         with:
           node-version: '22'
       - run: node --test scripts/*.test.mjs
+
+  wordpress-integration:
+    name: WordPress integration action (${{ matrix.mode }}, ${{ matrix.image }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { mode: single site, multisite: 'false', image: 'mysql:8.0', user: root, password: '', port: '3306' }
+          - { mode: multisite, multisite: 'true', image: 'mysql:8.0', user: root, password: '', port: '3306' }
+          # The other shapes callers use: MariaDB, a user with privileges on one database, and another port.
+          - { mode: multisite, multisite: 'true', image: 'mariadb:10.6', user: tests, password: disposable, port: '3307' }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: UAMS-Web/wordpress-plugin-template
+          ref: b57e3cca6e3f7f3f98430698858134be02de53ba
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - uses: $/.github/actions/wordpress-integration
+        with:
+          multisite: ${{ matrix.multisite }}
+          database-image: ${{ matrix.image }}
+          database-user: ${{ matrix.user }}
+          database-password: ${{ matrix.password }}
+          database-port: ${{ matrix.port }}
+          env: |
+            PROBE=one two
+      - name: Run the suite and read the install shape it reports
+        env:
+          MODE: ${{ matrix.mode }}
+        run: |
+          [ "$PROBE" = "one two" ] || { echo "::error::The env input did not reach this step: '$PROBE'"; exit 1; }
+          php tests/Integration/vendor/bin/phpunit --configuration tests/Integration/phpunit.xml 2>&1 | tee suite.log
+          case "$MODE" in
+            multisite) grep -qF 'Running as multisite' suite.log ;;
+            *) grep -qF 'Running as single site' suite.log ;;
+          esac || { echo "::error::The suite did not report a $MODE run"; exit 1; }
+          grep -E '^OK|Tests: [1-9]' suite.log || { echo "::error::The suite reported no tests"; exit 1; }
