@@ -70,8 +70,8 @@ The `mutate` job uses it when `mutate-wordpress` is `true`. A caller's own integ
 | --- | --- | --- |
 | `integration-path` | `tests/Integration` | The directory of the suite's own Composer setup. |
 | `wordpress-version` | empty | The WordPress version; empty reads it from the lock. |
-| `multisite` | empty | `true` exports `WP_MULTISITE=1`, `false` exports `WP_MULTISITE=0`, empty exports neither. |
-| `env` | empty | More variables, one `NAME=value` a line, exported last. |
+| `multisite` | empty | `true` exports `WP_MULTISITE=1`, `false` exports `WP_MULTISITE=0`, empty exports neither. `false` does not override a suite that defines `WP_TESTS_MULTISITE` or `MULTISITE` as true. |
+| `env` | empty | More variables, one `NAME=value` a line, exported last. The log shows them, so they are not for secrets. |
 | `database-image` | `mysql:8.0` | The image of the database container. |
 | `database-name` | `wordpress_tests` | The database, which the suite's installer empties. |
 | `database-user` | `root` | The user the suite connects as. Another user is created with privileges on that database alone. |

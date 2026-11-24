@@ -185,7 +185,7 @@ on:
         type: string
         default: ''
       mutate-wordpress-multisite:
-        description: With mutate-wordpress, `true` exports WP_MULTISITE=1 and `false` exports WP_MULTISITE=0. Empty exports neither and leaves the choice to the suite.
+        description: With mutate-wordpress, `true` exports WP_MULTISITE=1 and `false` exports WP_MULTISITE=0. Empty exports neither and leaves the choice to the suite. `false` does not override a suite that defines WP_TESTS_MULTISITE or MULTISITE as true; set that suite's own switch in mutate-wordpress-env.
         type: string
         default: ''
       mutate-wordpress-database-image:
@@ -193,7 +193,7 @@ on:
         type: string
         default: mysql:8.0
       mutate-wordpress-env:
-        description: More variables mutate-wordpress exports for the suite, one NAME=value a line, such as a variable a suite uses to choose between single site and multisite.
+        description: More variables mutate-wordpress exports for the suite, one NAME=value a line, such as a variable a suite uses to choose between single site and multisite. The log shows them, so they are not for secrets.
         type: string
         default: ''
       encoding-guard:

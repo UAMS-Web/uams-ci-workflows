@@ -65,7 +65,6 @@ test('root with no password starts a container that allows one, on the loopback 
     assert.equal(r.calls[0], 'docker [rm] [-f] [wordpress-integration-db]')
     assert.match(r.calls[1], /^docker \[run\] \[-d\] .*\[-p\] \[127\.0\.0\.1:3306:3306\]/)
     assert.match(r.calls[1], /\[MYSQL_ALLOW_EMPTY_PASSWORD=yes\]/)
-    assert.match(r.calls[1], /\[MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=yes\]/)
     assert.match(r.calls[1], /\[MYSQL_DATABASE=wordpress_tests\].*\[mysql:8\.0\]$/)
 })
 
@@ -108,7 +107,7 @@ const lockOf = (version, key = 'packages-dev') => ({ packages: [], 'packages-dev
 const wp = (version, lock) => run('download-wordpress.sh', { env: { INTEGRATION_PATH: 'tests/Integration', WORDPRESS_VERSION: version }, stubs: download, lock })
 const url = (r) => r.calls.find((c) => c.startsWith('curl'))?.match(/\[(https:[^\]]+)\]$/)?.[1]
 
-for (const [version, published] of [['6.8.3', '6.8.3'], ['6.8.0', '6.8'], ['7.0', '7.0'], ['v7.0.7', '7.0.7'], ['6.10.0', '6.10'], ['7.2.0-RC1', '7.2.0-RC1']]) {
+for (const [version, published] of [['6.8.3', '6.8.3'], ['6.8.0', '6.8'], ['7.0', '7.0'], ['v7.0.7', '7.0.7'], ['6.10.0', '6.10'], ['7.2.0-RC1', '7.2-RC1'], ['7.2-beta1', '7.2-beta1']]) {
     test(`the lock's wp-phpunit ${version} downloads WordPress ${published}`, () => {
         const r = wp('', lockOf(version))
         assert.equal(r.status, 0, r.out)
@@ -178,7 +177,7 @@ test('env lines are exported after the others, with blank lines and indentation 
     assert.deepEqual(r.exported, [...base, 'SINGLE_SITE=1', 'URL=a=b c', 'EMPTY='])
 })
 
-test('the log names the variables and not their values', () => {
+test('the export script prints the names of the variables and not their values', () => {
     const r = exportsOf({ DB_PASSWORD: 'hunter2', MORE: 'A=secret-ish' })
     assert.match(r.out, /Exported: WP_TESTS_ABSPATH .*WP_TESTS_DB_PASSWORD A$/m)
     assert.doesNotMatch(r.out, /hunter2|secret-ish/)
@@ -201,20 +200,35 @@ for (const [what, env, message] of [
 // wait-for-database.sh. The stub answers the mysqli check first, then refuses `REFUSALS` connections.
 
 const phpStub = 'case "$*" in *extension_loaded*) exit "${NO_MYSQLI:-0}" ;; esac\nn=$(grep -c mysqli_connect_error "$CALLS")\nif [ "$n" -le "${REFUSALS:-0}" ]; then echo refused; exit 1; fi\necho 8.0.40'
-const wait = (env) => run('wait-for-database.sh', { env: { ...DB, WAIT_ATTEMPTS: '3', WAIT_SECONDS: '0', ...env }, stubs: { php: phpStub, docker: 'exit 0' } })
+const EXPORTED = { WP_TESTS_DB_HOST: '127.0.0.1', WP_TESTS_DB_NAME: 'wordpress_tests', WP_TESTS_DB_USER: 'root', WP_TESTS_DB_PASSWORD: '' }
+const wait = (env) => run('wait-for-database.sh', { env: { ...EXPORTED, WAIT_ATTEMPTS: '3', WAIT_SECONDS: '0', ...env }, stubs: { php: phpStub, docker: 'exit 0' } })
 
 test('the wait ends on the first connection that is accepted', () => {
-    assert.match(wait({}).out, /Database 8\.0\.40 answered on attempt 1/)
+    assert.match(wait({}).out, /Database 8\.0\.40 answered for wordpress_tests on attempt 1/)
     const r = wait({ REFUSALS: '2' })
     assert.equal(r.status, 0, r.out)
-    assert.match(r.out, /answered on attempt 3/)
+    assert.match(r.out, /answered for wordpress_tests on attempt 3/)
 })
 
 test('a database that never accepts a connection fails, with the last answer and the container log', () => {
     const r = wait({ REFUSALS: '9' })
     assert.equal(r.status, 1)
-    assert.match(r.out, /after 3 attempts; the last answer was: refused/)
+    assert.match(r.out, /to wordpress_tests after 3 attempts; the last answer was: refused/)
     assert.ok(r.calls.includes('docker [logs] [--tail] [50] [wordpress-integration-db]'))
+})
+
+// The PHP program itself, with `mysqli_connect` unavailable to stub, is read: it must use the exported values.
+test('the wait connects with the values the suite reads, so a name replaced through env is the one checked', () => {
+    const script = readFileSync(join(action, 'wait-for-database.sh'), 'utf8')
+    for (const name of ['HOST', 'USER', 'PASSWORD', 'NAME']) assert.match(script, new RegExp(`getenv\\("WP_TESTS_DB_${name}"\\)`))
+    assert.doesNotMatch(script, /(?<!WP_TESTS_)DB_(?:PORT|NAME|USER|PASSWORD)/)
+    assert.doesNotMatch(actionText.slice(actionText.indexOf('- name: Wait for the database')), /^ {6}env:/m)
+})
+
+test('a container that does not start fails with the image named', () => {
+    const r = run('start-database.sh', { env: DB, stubs: { docker: '[ "$1" = run ] && exit 125; exit 0' } })
+    assert.equal(r.status, 1)
+    assert.match(r.out, /::error::The database container did not start from the image 'mysql:8\.0'/)
 })
 
 test('a PHP without mysqli fails before any connection', () => {

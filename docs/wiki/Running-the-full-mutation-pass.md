@@ -76,7 +76,7 @@ A pull request or push that changes no PHP file under `mutate-paths`, or whose c
        MY_PLUGIN_TESTS_SINGLE_SITE=1
    ```
 
-   The mutants share one database, so leave `--parallel` out of a `composer mutate` that boots WordPress unless the suite gives each process a database of its own. Composer passes `--path` to every Pest command in the script, so a script with several commands mutates the changed files once for each of them on a pull request, a push or a shard.
+   The mutants share one database, so leave `--parallel` out of a `composer mutate` that boots WordPress unless the suite gives each process a database of its own. Composer passes `--path` to every Pest command in the script, so a script with several commands mutates the changed files once for each of them on a pull request, a push or a shard. The `Check the mutation run` step reads the first command's summary only, so for such a script a timed-out mutant in a later command passes; read each `Mutations:` line the `Report the leg` step prints.
 
 **Note:** `mutate: false` skips the job on every event, and the `mutate-ignore` job with it unless `mutate-ignore: true`. See [Inputs](Inputs.md).
 

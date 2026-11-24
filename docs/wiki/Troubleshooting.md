@@ -85,13 +85,14 @@ mutate-submodules holds no path
 There is no tests/Integration/composer.lock to read the WordPress version from; commit it, or pass the version
 tests/Integration/composer.lock does not lock wp-phpunit/wp-phpunit, so the WordPress version cannot be read from it; pass the version
 The installed PHP has no mysqli extension, which WordPress connects with; add it to the setup action's extensions
-The database did not accept a connection after <n> attempts; the last answer was: <answer>
+The database container did not start from the image '<image>'
+The database did not accept a connection to <name> after <n> attempts; the last answer was: <answer>
 env holds a line that is not NAME=value: <line>
 ```
 
-**Cause:** the `wordpress-integration` action, which the `mutate` job runs when `mutate-wordpress` is `true`, could not stand up what the suite needs. The fourth line follows the container's last log lines; a wrong `mutate-wordpress-database-image` shows there.
+**Cause:** the `wordpress-integration` action, which the `mutate` job runs when `mutate-wordpress` is `true`, could not stand up what the suite needs. The fourth line means the image could not be pulled or run. The fifth follows the container's last log lines; it also appears when `mutate-wordpress-env` names a database the container does not hold.
 
-**Fix:** the first two lines are answered with `mutate-wordpress-version`, the third in the caller's `.github/actions/setup/action.yml`, the last in `mutate-wordpress-env`. See [Jobs](Jobs.md#wordpress-integration-environment).
+**Fix:** the first two lines are answered with `mutate-wordpress-version`, the third in the caller's `.github/actions/setup/action.yml`, the fourth with `mutate-wordpress-database-image`, the others in `mutate-wordpress-env`. See [Jobs](Jobs.md#wordpress-integration-environment).
 
 ## No tracked PHP file to shard
 

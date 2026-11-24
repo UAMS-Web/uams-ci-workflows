@@ -15,8 +15,8 @@ if [ -z "$version" ]; then
 fi
 version=${version#v}
 [[ "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-(beta|RC)[0-9]+)?$ ]] || fail "The WordPress version is '$version' (from $source), which is not a release number"
-# wordpress.org publishes a dot-zero release without the trailing `.0`: `wordpress-6.8.tar.gz`.
-if [[ "$version" =~ ^[0-9]+\.[0-9]+\.0$ ]]; then version=${version%.0}; fi
+# wordpress.org publishes a dot-zero release without the `.0`: `wordpress-6.8.tar.gz`, `wordpress-6.8-RC1.tar.gz`.
+if [[ "$version" =~ ^([0-9]+\.[0-9]+)\.0(-.*)?$ ]]; then version="${BASH_REMATCH[1]}${BASH_REMATCH[2]:-}"; fi
 
 target="$RUNNER_TEMP/wordpress"
 rm -rf "$target"

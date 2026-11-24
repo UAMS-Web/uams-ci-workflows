@@ -8,7 +8,7 @@ name: Script tests
 # The `wordpress-integration` job runs the composite action of that name against the Integration suite of
 # UAMS-Web/wordpress-plugin-template, a caller that carries one, on single site and on multisite
 # (UAMS-Web/uams-ci-workflows#78). The commit is pinned so a change there cannot fail a pull request here.
-# Each leg reads which install shape the suite reported, so a variable that stopped reaching it fails the leg.
+# Each leg reads which install shape the suite reported, so a multisite variable that stopped reaching it fails a leg.
 
 on:
   pull_request:
@@ -35,7 +35,7 @@ jobs:
       - run: node --test scripts/*.test.mjs
 
   wordpress-integration:
-    name: WordPress integration action (${{ matrix.mode }}, ${{ matrix.image }})
+    name: WordPress integration action (${{ matrix.mode }}, ${{ matrix.image }}, ${{ matrix.user }}${{ matrix.password && ' with a password' || '' }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -44,6 +44,8 @@ jobs:
         include:
           - { mode: single site, multisite: 'false', image: 'mysql:8.0', user: root, password: '', port: '3306' }
           - { mode: multisite, multisite: 'true', image: 'mysql:8.0', user: root, password: '', port: '3306' }
+          - { mode: single site, multisite: 'false', image: 'mysql:8.0', user: root, password: disposable, port: '3306' }
+          - { mode: multisite, multisite: 'true', image: 'mysql:8.0', user: tests, password: disposable, port: '3306' }
           # The other shapes callers use: MariaDB, a user with privileges on one database, and another port.
           - { mode: multisite, multisite: 'true', image: 'mariadb:10.6', user: tests, password: disposable, port: '3307' }
     defaults:

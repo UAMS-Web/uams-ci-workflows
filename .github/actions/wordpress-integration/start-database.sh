@@ -23,11 +23,10 @@ if [ "$DB_USER" != "root" ]; then
 elif [ -n "$DB_PASSWORD" ]; then
   put ROOT_PASSWORD "$DB_PASSWORD"
 else
-  put ALLOW_EMPTY_PASSWORD yes
-  # The name a mariadb image reads; it ignores the one above.
-  args+=(-e MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=yes)
+  # A mariadb image reads this name too.
+  args+=(-e MYSQL_ALLOW_EMPTY_PASSWORD=yes)
 fi
 
 # A second use of the action in one job starts from an empty database.
 docker rm -f wordpress-integration-db > /dev/null 2>&1 || true
-docker run -d --name wordpress-integration-db -p "127.0.0.1:$DB_PORT:3306" "${args[@]}" "$DB_IMAGE"
+docker run -d --name wordpress-integration-db -p "127.0.0.1:$DB_PORT:3306" "${args[@]}" "$DB_IMAGE" || fail "The database container did not start from the image '$DB_IMAGE'"

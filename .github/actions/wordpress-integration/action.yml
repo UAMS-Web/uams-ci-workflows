@@ -24,10 +24,10 @@ inputs:
     description: The WordPress version to download. Empty reads the version of `wp-phpunit/wp-phpunit` in the `composer.lock` under `integration-path`, since that package is released with WordPress.
     default: ''
   multisite:
-    description: "`true` exports `WP_MULTISITE=1` and `false` exports `WP_MULTISITE=0`. Empty exports neither and leaves the choice to the suite."
+    description: "`true` exports `WP_MULTISITE=1` and `false` exports `WP_MULTISITE=0`. Empty exports neither and leaves the choice to the suite. `wp-phpunit` also runs multisite when the suite defines `WP_TESTS_MULTISITE` or `MULTISITE` as true, and `false` does not override that; set the suite's own switch in `env`."
     default: ''
   env:
-    description: More variables the suite reads, one `NAME=value` a line. They are exported last, so one can replace a value this action exports.
+    description: More variables the suite reads, one `NAME=value` a line. They are exported last, so one can replace a value this action exports. The log shows them, so they are not for secrets.
     default: ''
   database-image:
     description: The image of the database container, a `mysql` or `mariadb` tag.
@@ -83,12 +83,8 @@ runs:
       run: bash "$GITHUB_ACTION_PATH/export-environment.sh"
 
     # The first connection is made after every slow step, so the container has had that time to initialize. It is made
-    # with the extension and the values the suite uses, so a server that answers but refuses them is not read as ready.
+    # with the extension the suite uses and the `WP_TESTS_DB_*` values it will read, `env` included, so a server that
+    # answers but refuses them, or a replaced name that no database has, is not read as ready.
     - name: Wait for the database
       shell: bash
-      env:
-        DB_PORT: ${{ inputs.database-port }}
-        DB_NAME: ${{ inputs.database-name }}
-        DB_USER: ${{ inputs.database-user }}
-        DB_PASSWORD: ${{ inputs.database-password }}
       run: bash "$GITHUB_ACTION_PATH/wait-for-database.sh"
