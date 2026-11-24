@@ -60,12 +60,30 @@ A pull request or push that changes no PHP file under `mutate-paths`, or whose c
 
    Steps 4 and 5 need a pin after v0.14.0.
 
+6. **Stand up WordPress where the pass boots it.** A `composer mutate` that runs the Integration suite needs a database, a WordPress tree and the suite's own packages. `mutate-wordpress: true` sets them up before `composer mutate`, with the `wordpress-integration` action described under [Jobs](Jobs.md#wordpress-integration-environment). It needs a pin after v0.17.0.
+
+   ```yaml
+   with:
+     mutate: true
+     mutate-paths: includes
+     mutate-wordpress: true
+   ```
+
+   A suite with its own switch for the install shape takes it through `mutate-wordpress-env`; a suite that follows `wp-phpunit` takes `mutate-wordpress-multisite`. One call mutates on one shape.
+
+   ```yaml
+     mutate-wordpress-env: |
+       MY_PLUGIN_TESTS_SINGLE_SITE=1
+   ```
+
+   The mutants share one database, so leave `--parallel` out of a `composer mutate` that boots WordPress unless the suite gives each process a database of its own. Composer passes `--path` to every Pest command in the script, so a script with several commands mutates the changed files once for each of them on a pull request, a push or a shard. The `Check the mutation run` step reads the first command's summary only, so for such a script a timed-out mutant in a later command passes; read each `Mutations:` line the `Report the leg` step prints.
+
 **Note:** `mutate: false` skips the job on every event, and the `mutate-ignore` job with it unless `mutate-ignore: true`. See [Inputs](Inputs.md).
 
 ## Reference
 
-- [Inputs](Inputs.md): `mutate`, `mutate-paths`, `mutate-timeout-minutes`, `mutate-full-timeout-minutes`, `mutate-shards`, `mutate-advisory`, `mutate-submodules`, `mutate-submodules-recursive` and the `mutate-submodules-token` secret.
+- [Inputs](Inputs.md): `mutate`, `mutate-paths`, `mutate-timeout-minutes`, `mutate-full-timeout-minutes`, `mutate-shards`, `mutate-advisory`, `mutate-submodules`, `mutate-submodules-recursive`, the `mutate-submodules-token` secret, and `mutate-wordpress` with its `-version`, `-multisite`, `-database-image` and `-env` inputs.
 - [Jobs](Jobs.md#pcov): how the job loads PCOV.
-- [Troubleshooting](Troubleshooting.md): the errors the shard planner and the `mutate` job print.
+- [Troubleshooting](Troubleshooting.md): the errors the shard planner, the `mutate` job and the `wordpress-integration` action print.
 
 <!-- cspell:ignore PCOV -->

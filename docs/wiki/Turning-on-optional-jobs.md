@@ -40,7 +40,7 @@ Several jobs are off until the caller passes `true` for the input of the same na
      pest-command: composer test:unit
    ```
 
-   A plugin that does not receive the `pest-testing` skill also passes `global-test-symbols: false`. Its WordPress integration matrix stays a plain job in the caller, listed in the `needs:` of its `CI` job.
+   A plugin that does not receive the `pest-testing` skill also passes `global-test-symbols: false`. Its WordPress integration matrix stays a plain job in the caller, listed in the `needs:` of its `CI` job; that job can use the [`wordpress-integration` action](Jobs.md#wordpress-integration-environment). A plugin whose mutation pass boots WordPress passes `mutate-wordpress: true` ([Running the full mutation pass](Running-the-full-mutation-pass.md)).
 
 **Note:** `guard-patterns` adds to the built-in patterns (`wp-config.php`, `.sql`, `.csv`, `.tsv`, `.xlsx`, `.env`, `.pem`, `.key`) and never replaces them. `dev-lint` always skips `vendor` and `node_modules`.
 
